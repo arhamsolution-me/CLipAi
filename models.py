@@ -3,7 +3,35 @@ import json
 import os
 from flask_sqlalchemy import SQLAlchemy
 
+from sqlalchemy import inspect, text
+
 db = SQLAlchemy()
+
+def auto_migrate_schema(engine):
+    """
+    Ensures existing database tables are updated with newly added columns
+    without requiring manual database deletion or complex migrations.
+    """
+    try:
+        inspector = inspect(engine)
+        if 'clips' in inspector.get_table_names():
+            columns = [c['name'] for c in inspector.get_columns('clips')]
+
+            migrations = [
+                ('has_captions', 'BOOLEAN DEFAULT 1'),
+                ('caption_style', "VARCHAR(50) DEFAULT 'tiktok_pop'"),
+                ('caption_font', "VARCHAR(100) DEFAULT 'Arial Black'"),
+                ('caption_color', "VARCHAR(20) DEFAULT '#FFFF00'"),
+                ('caption_language', "VARCHAR(10) DEFAULT 'auto'")
+            ]
+
+            with engine.connect() as conn:
+                for col_name, col_type in migrations:
+                    if col_name not in columns:
+                        conn.execute(text(f"ALTER TABLE clips ADD COLUMN {col_name} {col_type}"))
+                conn.commit()
+    except Exception as e:
+        print(f"Database auto-migration note: {e}")
 
 class Job(db.Model):
     __tablename__ = 'jobs'

@@ -15,7 +15,7 @@ import requests
 import redis
 from rq import Queue
 
-from models import db, Job, Clip, cleanup_old_data
+from models import db, Job, Clip, cleanup_old_data, auto_migrate_schema
 from services.transcript_service import fetch_youtube_transcript, format_transcript_for_prompt
 from services.ai_service import analyze_transcript_highlights, generate_ai_clip_metadata, seconds_to_timestamp, timestamp_to_seconds
 from services.video_service import download_source_video, cut_and_format_clip
@@ -45,6 +45,7 @@ db.init_app(app)
 
 with app.app_context():
     db.create_all()
+    auto_migrate_schema(db.engine)
     # Perform 24-hour cleanup on startup
     clips_folder = os.path.join(app.root_path, 'clips')
     cleanup_old_data(db.session, clips_folder, hours=24)

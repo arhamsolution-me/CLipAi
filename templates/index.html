@@ -1,0 +1,1353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClipFlow AI - YouTube Shorts Clipper</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #020617;
+            color: #f8fafc;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+        .glass-card {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        .gradient-text {
+            background: linear-gradient(135deg, #818cf8 0%, #c084fc 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            color: transparent;
+        }
+        .animate-float {
+            animation: float 6s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        
+        @media (max-width: 768px) {
+            .max-w-4xl { max-width: 100% !important; padding: 0 10px; }
+            .max-w-6xl { max-width: 100% !important; padding: 0 10px; }
+            .text-6xl { font-size: 2.5rem !important; }
+            .grid-cols-3 { grid-template-columns: 1fr !important; }
+            .flex { flex-direction: column !important; }
+            .gap-12 { gap: 1rem !important; }
+            .px-8 { padding-left: 1rem !important; padding-right: 1rem !important; }
+            .py-6 { padding-top: 1rem !important; padding-bottom: 1rem !important; }
+            .text-xl { font-size: 1rem !important; }
+            .right-3 { right: 0.5rem !important; }
+            .px-10 { padding-left: 1rem !important; padding-right: 1rem !important; }
+        }
+
+        /* ---- Local Upload Tab Styles ---- */
+        .tab-btn {
+            padding: 0.6rem 1.4rem;
+            border-radius: 0.75rem;
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1.5px solid transparent;
+            background: transparent;
+            color: #94a3b8;
+        }
+        .tab-btn.active {
+            background: rgba(99,102,241,0.15);
+            border-color: rgba(99,102,241,0.5);
+            color: #a5b4fc;
+        }
+        .tab-btn:not(.active):hover {
+            background: rgba(255,255,255,0.04);
+            color: #cbd5e1;
+        }
+        #drop-zone {
+            border: 2px dashed rgba(99,102,241,0.35);
+            border-radius: 1.5rem;
+            padding: 3rem 2rem;
+            cursor: pointer;
+            transition: all 0.25s;
+            background: rgba(15,23,42,0.5);
+            position: relative;
+        }
+        #drop-zone.drag-over {
+            border-color: #818cf8;
+            background: rgba(99,102,241,0.08);
+            transform: scale(1.01);
+        }
+        #drop-zone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+            width: 100%;
+            height: 100%;
+        }
+        .upload-progress-bar {
+            height: 4px;
+            background: linear-gradient(90deg, #6366f1, #a855f7);
+            border-radius: 9999px;
+            transition: width 0.4s ease;
+        }
+
+        /* ---- Generation Progress Screen ---- */
+        .gen-step {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem 1.25rem;
+            border-radius: 1rem;
+            border: 1px solid rgba(255,255,255,0.06);
+            background: rgba(15,23,42,0.5);
+            transition: all 0.4s ease;
+        }
+        .gen-step.active {
+            border-color: rgba(99,102,241,0.5);
+            background: rgba(99,102,241,0.08);
+        }
+        .gen-step.done {
+            border-color: rgba(34,197,94,0.4);
+            background: rgba(34,197,94,0.05);
+        }
+        .gen-step.error {
+            border-color: rgba(239,68,68,0.4);
+            background: rgba(239,68,68,0.05);
+        }
+        .gen-step-icon {
+            width: 2.5rem;
+            height: 2.5rem;
+            flex-shrink: 0;
+            border-radius: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            background: rgba(30,41,59,0.8);
+            border: 1px solid rgba(255,255,255,0.07);
+        }
+        .gen-step.active .gen-step-icon {
+            background: rgba(99,102,241,0.15);
+            border-color: rgba(99,102,241,0.4);
+        }
+        .gen-step.done .gen-step-icon {
+            background: rgba(34,197,94,0.15);
+            border-color: rgba(34,197,94,0.4);
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spin { animation: spin 0.9s linear infinite; }
+
+        /* ---- Post Count Modal ---- */
+        #post-count-modal .modal-inner {
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .clip-select-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            border-radius: 0.875rem;
+            border: 1px solid rgba(255,255,255,0.06);
+            background: rgba(15,23,42,0.5);
+            transition: all 0.25s;
+        }
+        .clip-select-row.selected {
+            border-color: rgba(99,102,241,0.5);
+            background: rgba(99,102,241,0.07);
+        }
+        #post-count-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 9999px;
+            background: linear-gradient(90deg, #6366f1, #a855f7);
+            outline: none;
+            cursor: pointer;
+        }
+        #post-count-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #fff;
+            border: 3px solid #6366f1;
+            box-shadow: 0 0 8px rgba(99,102,241,0.5);
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="fixed top-0 left-0 right-0 z-50 glass-card px-6 py-4 flex items-center justify-between border-b border-slate-700/50">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                    <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight">ClipFlow <span class="gradient-text">AI</span></h1>
+                    <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Groq & RQ Powered</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-4">
+                <div id="auth-section">
+                    <button id="login-btn" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-indigo-500/20 active:scale-95">
+                        Connect YouTube
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="pt-40 px-6 pb-24">
+            <!-- Step 1: Input -->
+            <div id="step-input" class="max-w-4xl mx-auto text-center">
+                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[10px] font-bold uppercase tracking-widest mb-8">
+                    <span class="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></span>
+                    AI Transcript Scoring &amp; FFmpeg Fast Engine
+                </div>
+                <h2 class="text-6xl font-extrabold mb-6 tracking-tight leading-tight">
+                    One Video, <span class="gradient-text">Multiple Viral Shorts</span>
+                </h2>
+                <p class="text-slate-400 mb-10 text-lg max-w-xl mx-auto">
+                    Paste any YouTube video link to automatically extract viral highlights and create 9:16 Shorts.
+                </p>
+
+                <!-- TAB SWITCHER -->
+                <div class="flex items-center justify-center gap-2 mb-8 p-1.5 bg-slate-900/80 border border-slate-800 rounded-2xl max-w-sm mx-auto">
+                    <button id="tab-url" class="tab-btn active flex-1 flex items-center justify-center gap-2" onclick="switchTab('url')">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+                        YouTube URL
+                    </button>
+                    <button id="tab-local" class="tab-btn flex-1 flex items-center justify-center gap-2" onclick="switchTab('local')">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                        From Computer
+                    </button>
+                </div>
+
+                <!-- URL INPUT FORM -->
+                <div id="panel-url">
+                    <form id="analyze-form" class="relative group max-w-2xl mx-auto">
+                        <div class="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-3xl blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
+                        <div class="relative">
+                            <input
+                                type="text"
+                                id="url-input"
+                                placeholder="Paste YouTube link here (e.g. https://www.youtube.com/watch?v=...)"
+                                class="w-full px-8 py-6 bg-slate-900 border-2 border-slate-800 rounded-2xl text-lg focus:outline-none focus:border-indigo-500 transition-all shadow-2xl"
+                            />
+                            <button
+                                type="submit"
+                                id="analyze-btn"
+                                class="absolute right-3 top-3 bottom-3 px-8 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-500 transition-all flex items-center gap-2 active:scale-95 text-sm"
+                            >
+                                Generate Clips
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Controls Row: Clip Count & Custom Caption Suffix -->
+                    <div class="mt-4 flex flex-col sm:flex-row gap-4 max-w-2xl mx-auto text-left">
+                        <div class="sm:w-1/3">
+                            <label for="num-clips-select" class="block text-xs font-bold text-slate-400 mb-1.5 flex items-center gap-1.5">
+                                <svg class="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                                Clips Count
+                            </label>
+                            <select
+                                id="num-clips-select"
+                                class="w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-all font-bold cursor-pointer"
+                            >
+                                <option value="1">1 Short Clip</option>
+                                <option value="2">2 Short Clips</option>
+                                <option value="3" selected>3 Short Clips (Default)</option>
+                                <option value="4">4 Short Clips</option>
+                                <option value="5">5 Short Clips</option>
+                                <option value="6">6 Short Clips</option>
+                                <option value="7">7 Short Clips</option>
+                                <option value="8">8 Short Clips</option>
+                                <option value="9">9 Short Clips</option>
+                                <option value="10">10 Short Clips</option>
+                            </select>
+                        </div>
+                        <div class="sm:w-2/3">
+                            <label for="custom-caption-input" class="block text-xs font-bold text-slate-400 mb-1.5 flex items-center gap-1.5">
+                                <svg class="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
+                                Custom Caption Suffix / CTA
+                            </label>
+                            <input
+                                type="text"
+                                id="custom-caption-input"
+                                placeholder="e.g. Subscribe for daily clips! Follow @MyHandle #shorts"
+                                class="w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-all shadow-inner"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- LOCAL FILE UPLOAD PANEL -->
+                <div id="panel-local" class="hidden max-w-2xl mx-auto">
+                    <!-- Drop Zone -->
+                    <div id="drop-zone" onclick="document.getElementById('local-file-input').click()">
+                        <input type="file" id="local-file-input" accept="video/mp4,video/quicktime,video/x-msvideo,video/x-matroska,video/webm,video/x-m4v,video/x-flv,.mp4,.mov,.avi,.mkv,.webm,.m4v,.flv" style="display:none">
+                        <div id="drop-zone-content" class="flex flex-col items-center gap-4 pointer-events-none">
+                            <div class="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
+                                <svg class="w-8 h-8 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="text-white font-bold text-lg">Drop your video here</p>
+                                <p class="text-slate-500 text-sm mt-1">or click to browse &nbsp;·&nbsp; MP4, MOV, AVI, MKV, WebM (up to 2 GB)</p>
+                            </div>
+                        </div>
+                        <!-- File selected state -->
+                        <div id="file-selected-info" class="hidden flex-col items-center gap-3 pointer-events-none">
+                            <div class="w-14 h-14 rounded-2xl bg-green-500/10 border border-green-500/20 flex items-center justify-center">
+                                <svg class="w-7 h-7 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                            </div>
+                            <div class="text-center">
+                                <p id="selected-file-name" class="text-white font-bold"></p>
+                                <p id="selected-file-size" class="text-slate-500 text-sm mt-0.5"></p>
+                            </div>
+                            <button id="clear-file-btn" onclick="clearSelectedFile(event)" class="pointer-events-auto px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-lg transition-all">Change File</button>
+                        </div>
+                    </div>
+
+                    <!-- Upload progress bar (shown during upload) -->
+                    <div id="upload-progress-wrap" class="mt-4 hidden">
+                        <div class="h-1 bg-slate-800 rounded-full overflow-hidden">
+                            <div id="upload-progress-bar" class="upload-progress-bar" style="width:0%"></div>
+                        </div>
+                        <p id="upload-progress-label" class="text-slate-500 text-xs mt-2 text-center">Uploading...</p>
+                    </div>
+
+                    <!-- Local Controls Row -->
+                    <div class="mt-5 flex flex-col sm:flex-row gap-4">
+                        <div class="sm:w-1/3">
+                            <label for="local-num-clips" class="block text-xs font-bold text-slate-400 mb-1.5 flex items-center gap-1.5">
+                                <svg class="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                                Clips Count
+                            </label>
+                            <select id="local-num-clips" class="w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-all font-bold cursor-pointer">
+                                <option value="1">1 Short Clip</option>
+                                <option value="2">2 Short Clips</option>
+                                <option value="3" selected>3 Short Clips (Default)</option>
+                                <option value="4">4 Short Clips</option>
+                                <option value="5">5 Short Clips</option>
+                                <option value="6">6 Short Clips</option>
+                                <option value="7">7 Short Clips</option>
+                                <option value="8">8 Short Clips</option>
+                                <option value="9">9 Short Clips</option>
+                                <option value="10">10 Short Clips</option>
+                            </select>
+                        </div>
+                        <div class="sm:w-2/3">
+                            <label for="local-title-input" class="block text-xs font-bold text-slate-400 mb-1.5 flex items-center gap-1.5">
+                                <svg class="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
+                                Video Title (optional)
+                            </label>
+                            <input type="text" id="local-title-input" placeholder="My Video" class="w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-all shadow-inner" />
+                        </div>
+                    </div>
+
+                    <button id="local-analyze-btn" onclick="analyzeLocalVideo()" class="mt-5 w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl transition-all shadow-xl shadow-indigo-600/20 active:scale-[0.98] flex items-center justify-center gap-2 text-sm">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.347.347a3 3 0 01-2.12.879H7.132a3 3 0 01-2.122-.879l-.347-.347z"/></svg>
+                        Analyze & Generate Clips
+                    </button>
+                </div>
+
+                <div class="mt-16 flex justify-center gap-12 text-slate-600 text-[10px] font-bold tracking-widest uppercase">
+                    <div class="flex items-center gap-2">Flask + SQLite</div>
+                    <div class="flex items-center gap-2">Groq Llama-3.3 AI</div>
+                    <div class="flex items-center gap-2">FFmpeg 9:16 Crop</div>
+                </div>
+            </div>
+
+            <!-- Step 1.5: Generating Progress Screen -->
+            <div id="step-generating" class="max-w-xl mx-auto hidden">
+                <div class="text-center mb-10">
+                    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[10px] font-bold uppercase tracking-widest mb-6">
+                        <span class="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></span>
+                        AI Processing
+                    </div>
+                    <h2 class="text-3xl font-bold mb-2">Generating <span class="gradient-text">Your Clips</span></h2>
+                    <p class="text-slate-500 text-sm" id="gen-subtitle">Analyzing video and extracting highlights...</p>
+                </div>
+
+                <!-- Overall progress bar -->
+                <div class="mb-8">
+                    <div class="h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                        <div id="gen-overall-bar" class="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-700 ease-out shadow-[0_0_10px_rgba(99,102,241,0.5)]" style="width:0%"></div>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-2 text-right" id="gen-overall-label">0%</p>
+                </div>
+
+                <!-- Step cards -->
+                <div class="space-y-3" id="gen-steps-list">
+                    <div class="gen-step" id="genstep-meta">
+                        <div class="gen-step-icon">🔍</div>
+                        <div class="flex-1">
+                            <p class="font-semibold text-sm text-white">Fetching Video Metadata</p>
+                            <p class="text-xs text-slate-500 mt-0.5" id="genstep-meta-detail">Connecting to YouTube API...</p>
+                        </div>
+                        <div class="gen-step-status text-slate-600 text-xs font-bold" id="genstep-meta-status">Waiting</div>
+                    </div>
+                    <div class="gen-step" id="genstep-transcript">
+                        <div class="gen-step-icon">📝</div>
+                        <div class="flex-1">
+                            <p class="font-semibold text-sm text-white">Downloading Transcript</p>
+                            <p class="text-xs text-slate-500 mt-0.5" id="genstep-transcript-detail">Fetching captions & subtitles...</p>
+                        </div>
+                        <div class="gen-step-status text-slate-600 text-xs font-bold" id="genstep-transcript-status">Waiting</div>
+                    </div>
+                    <div class="gen-step" id="genstep-ai">
+                        <div class="gen-step-icon">🤖</div>
+                        <div class="flex-1">
+                            <p class="font-semibold text-sm text-white">AI Highlight Scoring</p>
+                            <p class="text-xs text-slate-500 mt-0.5" id="genstep-ai-detail">Groq Llama-3.3 ranking moments...</p>
+                        </div>
+                        <div class="gen-step-status text-slate-600 text-xs font-bold" id="genstep-ai-status">Waiting</div>
+                    </div>
+                    <div class="gen-step" id="genstep-meta2">
+                        <div class="gen-step-icon">✂️</div>
+                        <div class="flex-1">
+                            <p class="font-semibold text-sm text-white">Generating Clip Metadata</p>
+                            <p class="text-xs text-slate-500 mt-0.5" id="genstep-meta2-detail">Writing titles, descriptions & tags...</p>
+                        </div>
+                        <div class="gen-step-status text-slate-600 text-xs font-bold" id="genstep-meta2-status">Waiting</div>
+                    </div>
+                    <div class="gen-step" id="genstep-done">
+                        <div class="gen-step-icon">✅</div>
+                        <div class="flex-1">
+                            <p class="font-semibold text-sm text-white">Clips Ready!</p>
+                            <p class="text-xs text-slate-500 mt-0.5" id="genstep-done-detail">All clips generated successfully.</p>
+                        </div>
+                        <div class="gen-step-status text-slate-600 text-xs font-bold" id="genstep-done-status">Waiting</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Preview -->
+            <div id="step-preview" class="max-w-6xl mx-auto hidden">
+                <div class="flex items-center justify-between mb-10">
+                    <div>
+                        <h2 class="text-3xl font-bold">AI Selected <span class="gradient-text">Short Clips</span></h2>
+                        <p class="text-slate-500 mt-1" id="preview-subtitle">Reviewing viral moments</p>
+                    </div>
+                    <button id="start-processing-btn" class="px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-500 shadow-xl shadow-indigo-600/20 active:scale-95 transition-all">
+                        Review &amp; Start Upload
+                    </button>
+                </div>
+                <div id="clips-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <!-- Clips populated here -->
+                </div>
+            </div>
+
+            <!-- Step 3: Queue -->
+            <div id="step-queue" class="max-w-3xl mx-auto hidden">
+                <div class="glass-card rounded-3xl p-10 border border-slate-700/50">
+                    <h2 class="text-3xl font-bold mb-2">Processing <span class="gradient-text">Active</span></h2>
+                    <p class="text-slate-500 mb-10">Cutting vertical 9:16 clips and uploading to YouTube Shorts.</p>
+                    
+                    <div id="queue-list" class="space-y-6">
+                        <!-- Queue items populated here -->
+                    </div>
+                    
+                    <div id="completion-section" class="mt-10 pt-8 border-t border-slate-700/50 flex flex-col items-center gap-4 hidden">
+                        <div class="w-16 h-16 bg-green-500/20 text-green-500 rounded-full flex items-center justify-center border border-green-500/30 mb-2">
+                            <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-bold">All Clips Processed!</h3>
+                        <button onclick="location.reload()" class="px-10 py-4 bg-slate-800 text-white rounded-2xl font-bold hover:bg-slate-700 transition-all active:scale-95 shadow-lg">
+                            Start New Project
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Upload Confirmation Modal -->
+        <div id="confirmation-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm hidden">
+            <div class="glass-card max-w-xl w-full mx-4 rounded-3xl p-8 border border-slate-700 shadow-2xl">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-bold">Confirm YouTube Upload</h3>
+                    <button onclick="closeConfirmationModal()" class="text-slate-400 hover:text-white text-xl">✕</button>
+                </div>
+                <p class="text-slate-400 text-sm mb-6">
+                    You are about to process and upload <span id="confirm-clip-count" class="font-bold text-white">3</span> clip(s) to your YouTube channel. Please verify the upload privacy settings:
+                </p>
+                <div id="modal-clips-summary" class="space-y-3 mb-8 max-h-60 overflow-y-auto">
+                    <!-- Dynamic summary rows -->
+                </div>
+                <div class="flex gap-4">
+                    <button onclick="closeConfirmationModal()" class="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition-all">
+                        Cancel
+                    </button>
+                    <button id="confirm-upload-btn" onclick="executeUploadQueue()" class="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition-all shadow-lg shadow-indigo-600/30">
+                        Confirm &amp; Upload
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ✨ Post Count Modal: How many clips to post? -->
+        <div id="post-count-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm hidden">
+            <div class="modal-inner glass-card max-w-2xl w-full mx-4 rounded-3xl border border-slate-700 shadow-2xl">
+                <!-- Header -->
+                <div class="p-8 pb-0">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <h3 class="text-2xl font-bold">Clips Ready! <span class="gradient-text">🎉</span></h3>
+                            <p class="text-slate-400 text-sm mt-1">Choose how many you want to post to your YouTube channel.</p>
+                        </div>
+                        <button onclick="closePostCountModal('review')" class="text-slate-500 hover:text-white text-xl mt-1 transition-colors">✕</button>
+                    </div>
+                </div>
+
+                <!-- Clip count selector -->
+                <div class="px-8 pt-6">
+                    <div class="p-5 bg-slate-900/70 rounded-2xl border border-slate-800">
+                        <div class="flex items-center justify-between mb-4">
+                            <label class="text-xs font-bold uppercase tracking-widest text-slate-400">Clips to Post</label>
+                            <div class="flex items-center gap-3">
+                                <button onclick="adjustPostCount(-1)" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold flex items-center justify-center transition-all active:scale-90">−</button>
+                                <span id="post-count-display" class="text-3xl font-extrabold gradient-text w-10 text-center">3</span>
+                                <button onclick="adjustPostCount(1)" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold flex items-center justify-center transition-all active:scale-90">+</button>
+                            </div>
+                        </div>
+                        <input
+                            type="range"
+                            id="post-count-slider"
+                            min="1"
+                            max="5"
+                            value="3"
+                            oninput="onPostCountSlider(this.value)"
+                        />
+                        <div class="flex justify-between text-[10px] text-slate-600 font-bold mt-1.5">
+                            <span>1 clip</span>
+                            <span id="post-count-max-label">5 clips</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Clip selection preview -->
+                <div class="px-8 pt-5">
+                    <p class="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Selected Clips (top picks by AI rank)</p>
+                    <div id="post-count-clip-list" class="space-y-2 max-h-52 overflow-y-auto pr-1">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Action buttons -->
+                <div class="p-8 pt-6 flex flex-col sm:flex-row gap-3">
+                    <button
+                        onclick="closePostCountModal('review')"
+                        class="flex-1 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl transition-all active:scale-95 text-sm"
+                    >
+                        👁 Review All Clips First
+                    </button>
+                    <button
+                        id="post-selected-btn"
+                        onclick="closePostCountModal('post')"
+                        class="flex-1 py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold rounded-xl transition-all active:scale-95 shadow-xl shadow-indigo-600/30 text-sm flex items-center justify-center gap-2"
+                    >
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                        Post <span id="post-btn-count">3</span> Clip(s) to YouTube
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Background Effects -->
+        <div class="fixed inset-0 -z-10 overflow-hidden">
+            <div class="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl animate-float"></div>
+            <div class="absolute bottom-1/4 right-1/4 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl animate-float" style="animation-delay: -3s;"></div>
+        </div>
+    </div>
+
+    <script>
+        const CLIENT_ID = '212371733540-tljm3prqhq4b3fucr40ao8c88jfa7los.apps.googleusercontent.com';
+        const AUTH_STORAGE_KEY = 'yt_flow_auth_session';
+        let currentUser = null;
+        let currentMetadata = null;
+        let currentClips = [];
+        let tokenClient = null;
+        let activeTab = 'url';   // 'url' | 'local'
+        let selectedLocalFile = null;
+        let postCount = 1; // how many clips the user chose to post
+
+        // ========================================================
+        // GENERATION PROGRESS SCREEN HELPERS
+        // ========================================================
+        const GEN_STEPS = ['meta','transcript','ai','meta2','done'];
+        const GEN_STEP_PROGRESS = { meta: 10, transcript: 30, ai: 60, meta2: 85, done: 100 };
+
+        function showGeneratingScreen() {
+            document.getElementById('step-input').classList.add('hidden');
+            document.getElementById('step-generating').classList.remove('hidden');
+            GEN_STEPS.forEach(s => setGenStep(s, 'waiting'));
+            setGenOverall(0);
+        }
+
+        function setGenOverall(pct) {
+            document.getElementById('gen-overall-bar').style.width = pct + '%';
+            document.getElementById('gen-overall-label').textContent = pct + '%';
+        }
+
+        function setGenStep(step, state, detail) {
+            const el = document.getElementById(`genstep-${step}`);
+            const statusEl = document.getElementById(`genstep-${step}-status`);
+            const detailEl = document.getElementById(`genstep-${step}-detail`);
+            if (!el) return;
+            el.classList.remove('active','done','error');
+            if (state === 'active') {
+                el.classList.add('active');
+                statusEl.innerHTML = `<svg class="w-4 h-4 spin text-indigo-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>`;
+                setGenOverall(GEN_STEP_PROGRESS[step] - 5);
+            } else if (state === 'done') {
+                el.classList.add('done');
+                statusEl.innerHTML = `<span class="text-green-400">✓ Done</span>`;
+                setGenOverall(GEN_STEP_PROGRESS[step]);
+            } else if (state === 'error') {
+                el.classList.add('error');
+                statusEl.innerHTML = `<span class="text-red-400">✗ Failed</span>`;
+            } else {
+                statusEl.innerHTML = `<span class="text-slate-600">Waiting</span>`;
+            }
+            if (detail && detailEl) detailEl.textContent = detail;
+        }
+
+        // Simulates step progression during the async API call.
+        // Steps advance on a timer because we have no server-sent events.
+        let _genTimer = null;
+        function startGenProgress(numClips) {
+            const steps = [
+                { step: 'meta',       delay: 400,  detail: 'Fetched title, duration & thumbnail.' },
+                { step: 'transcript', delay: 2200, detail: 'Captions downloaded successfully.' },
+                { step: 'ai',         delay: 5000, detail: `Groq AI scored highlights for ${numClips} clip(s).` },
+                { step: 'meta2',      delay: 8500, detail: `Writing titles & tags for ${numClips} clip(s)...` },
+            ];
+            let idx = 0;
+            function tick() {
+                if (idx >= steps.length) return;
+                const cur = steps[idx];
+                // mark previous done
+                if (idx > 0) setGenStep(steps[idx-1].step, 'done', steps[idx-1].detail);
+                setGenStep(cur.step, 'active');
+                idx++;
+                _genTimer = setTimeout(tick, cur.delay - (idx > 1 ? steps[idx-2].delay : 0));
+            }
+            tick();
+        }
+
+        function finishGenProgress(numClips) {
+            if (_genTimer) clearTimeout(_genTimer);
+            // mark all intermediate steps done
+            ['meta','transcript','ai','meta2'].forEach((s, i) => {
+                const labels = [
+                    'Fetched title, duration & thumbnail.',
+                    'Captions downloaded successfully.',
+                    `Groq AI scored highlights for ${numClips} clip(s).`,
+                    `Wrote titles & tags for ${numClips} clip(s).`
+                ];
+                setGenStep(s, 'done', labels[i]);
+            });
+            setGenStep('done', 'done', `${numClips} clip(s) ready to review!`);
+        }
+
+        function failGenProgress(errorMsg) {
+            if (_genTimer) clearTimeout(_genTimer);
+            GEN_STEPS.forEach(s => {
+                const el = document.getElementById(`genstep-${s}`);
+                if (el && el.classList.contains('active')) setGenStep(s, 'error', errorMsg);
+            });
+        }
+
+        // ========================================================
+        // POST COUNT MODAL HELPERS
+        // ========================================================
+        function openPostCountModal() {
+            const n = currentClips.length;
+            postCount = Math.min(n, Math.max(1, n)); // default: all clips
+            const slider = document.getElementById('post-count-slider');
+            slider.max = n;
+            slider.value = postCount;
+            document.getElementById('post-count-max-label').textContent = n + ' clip' + (n !== 1 ? 's' : '');
+            renderPostCountModal();
+            document.getElementById('post-count-modal').classList.remove('hidden');
+        }
+
+        function renderPostCountModal() {
+            const n = currentClips.length;
+            document.getElementById('post-count-display').textContent = postCount;
+            document.getElementById('post-btn-count').textContent = postCount;
+            document.getElementById('post-count-slider').value = postCount;
+
+            const list = document.getElementById('post-count-clip-list');
+            list.innerHTML = currentClips.map((clip, idx) => {
+                const selected = idx < postCount;
+                const num = idx + 1;
+                return `
+                <div class="clip-select-row ${selected ? 'selected' : ''}" id="pcrow-${idx}">
+                    <div class="w-6 h-6 rounded-md flex items-center justify-center text-xs font-extrabold flex-shrink-0 ${
+                        selected ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40' :
+                                   'bg-slate-800 text-slate-500 border border-slate-700'
+                    }">${num}</div>
+                    <div class="flex-1 min-w-0">
+                        <p class="font-semibold text-sm truncate ${selected ? 'text-white' : 'text-slate-500'}">${(clip.title || 'Clip ' + num).replace(/</g,'&lt;')}</p>
+                        <p class="text-[10px] ${selected ? 'text-indigo-300' : 'text-slate-600'} mt-0.5">${clip.startTime || ''} – ${clip.endTime || ''}</p>
+                    </div>
+                    ${selected ? `<span class="px-2 py-0.5 rounded-md text-[9px] font-bold uppercase bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 flex-shrink-0">Post</span>` :
+                                 `<span class="px-2 py-0.5 rounded-md text-[9px] font-bold uppercase bg-slate-800 text-slate-600 border border-slate-700 flex-shrink-0">Skip</span>`}
+                </div>`;
+            }).join('');
+        }
+
+        function adjustPostCount(delta) {
+            const n = currentClips.length;
+            postCount = Math.min(n, Math.max(1, postCount + delta));
+            renderPostCountModal();
+        }
+
+        function onPostCountSlider(val) {
+            postCount = parseInt(val, 10);
+            renderPostCountModal();
+        }
+
+        function closePostCountModal(action) {
+            document.getElementById('post-count-modal').classList.add('hidden');
+            if (action === 'post') {
+                // Trim clips to selected count then go straight to upload
+                currentClips = currentClips.slice(0, postCount);
+                openConfirmationModal();
+            } else {
+                // Show full preview grid
+                _showPreviewGrid();
+            }
+        }
+
+        // ---- Tab Switcher ----
+        function switchTab(tab) {
+            activeTab = tab;
+            document.getElementById('tab-url').classList.toggle('active', tab === 'url');
+            document.getElementById('tab-local').classList.toggle('active', tab === 'local');
+            document.getElementById('panel-url').classList.toggle('hidden', tab !== 'url');
+            document.getElementById('panel-local').classList.toggle('hidden', tab !== 'local');
+        }
+
+        // ---- Local File Handling ----
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('local-file-input');
+
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            const file = e.dataTransfer.files[0];
+            if (file) setSelectedFile(file);
+        });
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files[0]) setSelectedFile(fileInput.files[0]);
+        });
+
+        // Override drop zone click: open file picker only (not propagate)
+        dropZone.addEventListener('click', (e) => {
+            if (e.target === dropZone || e.target.closest('#drop-zone-content')) {
+                fileInput.click();
+            }
+        });
+
+        function formatFileSize(bytes) {
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+            return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+        }
+
+        function setSelectedFile(file) {
+            selectedLocalFile = file;
+            document.getElementById('drop-zone-content').classList.add('hidden');
+            document.getElementById('file-selected-info').classList.remove('hidden');
+            document.getElementById('file-selected-info').style.display = 'flex';
+            document.getElementById('selected-file-name').textContent = file.name;
+            document.getElementById('selected-file-size').textContent = formatFileSize(file.size);
+            // Pre-fill title if empty
+            const titleInput = document.getElementById('local-title-input');
+            if (!titleInput.value.trim()) {
+                titleInput.value = file.name.replace(/\.[^.]+$/, '');
+            }
+        }
+
+        function clearSelectedFile(e) {
+            e.stopPropagation();
+            selectedLocalFile = null;
+            fileInput.value = '';
+            document.getElementById('drop-zone-content').classList.remove('hidden');
+            document.getElementById('file-selected-info').classList.add('hidden');
+        }
+
+        async function analyzeLocalVideo() {
+            if (!selectedLocalFile) {
+                alert('Please select a video file first.');
+                return;
+            }
+
+            const numClips = parseInt(document.getElementById('local-num-clips').value, 10);
+            const btn = document.getElementById('local-analyze-btn');
+            btn.disabled = true;
+            btn.innerHTML = `<svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Uploading &amp; Analyzing...`;
+
+            const progressWrap = document.getElementById('upload-progress-wrap');
+            const progressBar = document.getElementById('upload-progress-bar');
+            const progressLabel = document.getElementById('upload-progress-label');
+            progressWrap.classList.remove('hidden');
+
+            const formData = new FormData();
+            formData.append('video', selectedLocalFile);
+            formData.append('num_clips', numClips);
+            const titleVal = document.getElementById('local-title-input').value.trim();
+            if (titleVal) formData.append('title', titleVal);
+
+            try {
+                // Use XHR to show upload progress, then switch to gen progress screen
+                const result = await new Promise((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', '/api/analyze-local');
+
+                    xhr.upload.addEventListener('progress', (e) => {
+                        if (e.lengthComputable) {
+                            const pct = Math.round((e.loaded / e.total) * 100);
+                            progressBar.style.width = pct + '%';
+                            progressLabel.textContent = `Uploading... ${pct}%`;
+                        }
+                    });
+
+                    xhr.upload.addEventListener('load', () => {
+                        progressBar.style.width = '100%';
+                        progressLabel.textContent = 'Analyzing with AI...';
+                        progressWrap.classList.add('hidden');
+                        // Switch to generating progress screen once upload is done
+                        showGeneratingScreen();
+                        startGenProgress(numClips);
+                        document.getElementById('gen-subtitle').textContent =
+                            `AI analyzing your local video — generating ${numClips} clip(s)...`;
+                    });
+
+                    xhr.addEventListener('load', () => {
+                        try { resolve({ ok: xhr.status < 400, data: JSON.parse(xhr.responseText) }); }
+                        catch(e) { reject(new Error('Invalid server response')); }
+                    });
+                    xhr.addEventListener('error', () => reject(new Error('Network error')));
+                    xhr.send(formData);
+                });
+
+                if (!result.ok || result.data.error) {
+                    failGenProgress(result.data.error || 'Failed to analyze video');
+                    setTimeout(() => {
+                        document.getElementById('step-generating').classList.add('hidden');
+                        document.getElementById('step-input').classList.remove('hidden');
+                        alert(result.data.error || 'Failed to analyze video');
+                    }, 1200);
+                    return;
+                }
+
+                const customSuffix = document.getElementById('custom-caption-input').value.trim();
+                currentMetadata = result.data.metadata;
+                currentClips = result.data.clips.map(clip => {
+                    let desc = clip.description || '';
+                    if (customSuffix) {
+                        desc = desc ? `${desc}\n\n${customSuffix}` : customSuffix;
+                    }
+                    return { ...clip, description: desc, privacyStatus: 'public' };
+                });
+
+                finishGenProgress(currentClips.length);
+                setTimeout(() => {
+                    document.getElementById('step-generating').classList.add('hidden');
+                    openPostCountModal();
+                }, 900);
+
+            } catch (error) {
+                failGenProgress(error.message);
+                setTimeout(() => {
+                    document.getElementById('step-generating').classList.add('hidden');
+                    document.getElementById('step-input').classList.remove('hidden');
+                    alert('Analysis failed: ' + error.message);
+                }, 1200);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.347.347a3 3 0 01-2.12.879H7.132a3 3 0 01-2.122-.879l-.347-.347z"/></svg> Analyze &amp; Generate Clips`;
+                progressBar.style.width = '0%';
+            }
+        }
+
+        // Restore saved session from localStorage on page load
+        function restoreSavedSession() {
+            try {
+                const saved = localStorage.getItem(AUTH_STORAGE_KEY);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (parsed && parsed.accessToken) {
+                        currentUser = parsed;
+                        updateAuthUI();
+                    }
+                }
+            } catch (e) {
+                console.warn("Could not restore stored auth session", e);
+                localStorage.removeItem(AUTH_STORAGE_KEY);
+            }
+        }
+
+        function saveUserSession(user) {
+            currentUser = user;
+            try {
+                localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+            } catch (e) {
+                console.error("Failed to save auth session", e);
+            }
+            updateAuthUI();
+        }
+
+        function silentTokenRefresh() {
+            if (tokenClient) {
+                try {
+                    tokenClient.requestAccessToken({ prompt: '' });
+                } catch (e) {
+                    console.log("Silent token refresh prompt skipped", e);
+                }
+            }
+        }
+
+        // Initialize Google Auth
+        function initGoogleAuth() {
+            restoreSavedSession();
+
+            if (window.google?.accounts?.oauth2) {
+                tokenClient = window.google.accounts.oauth2.initTokenClient({
+                    client_id: CLIENT_ID,
+                    scope: 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/userinfo.profile',
+                    callback: async (response) => {
+                        if (response.access_token) {
+                            try {
+                                const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                                    headers: { Authorization: `Bearer ${response.access_token}` }
+                                });
+                                const userInfo = await res.json();
+                                const expiresInMs = (response.expires_in || 3600) * 1000;
+                                const userSession = {
+                                    ...userInfo,
+                                    accessToken: response.access_token,
+                                    expiresAt: Date.now() + expiresInMs
+                                };
+                                saveUserSession(userSession);
+                            } catch (e) {
+                                console.error("User info fetch failed", e);
+                            }
+                        }
+                    },
+                });
+
+                // If session exists but token is expired or close to expiring, try silent refresh
+                if (currentUser && currentUser.expiresAt && Date.now() >= (currentUser.expiresAt - 300000)) {
+                    silentTokenRefresh();
+                }
+            } else {
+                setTimeout(initGoogleAuth, 100);
+            }
+        }
+
+        function updateAuthUI() {
+            const authSection = document.getElementById('auth-section');
+            if (currentUser) {
+                authSection.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-2 px-3 py-1.5 bg-green-500/10 border border-green-500/30 rounded-full hidden sm:flex">
+                            <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                            <span class="text-xs font-semibold text-green-400">Connected</span>
+                        </div>
+                        <img src="${currentUser.picture || ''}" class="w-8 h-8 rounded-full border border-slate-700 shadow-sm" />
+                        <button onclick="logout()" class="px-3 py-1.5 border border-red-500/40 hover:bg-red-500/10 text-red-400 text-[11px] font-bold rounded-lg transition-all uppercase tracking-wider active:scale-95">
+                            Disconnect
+                        </button>
+                    </div>
+                `;
+            } else {
+                authSection.innerHTML = `
+                    <button onclick="login()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-indigo-500/20 active:scale-95">
+                        Connect YouTube
+                    </button>
+                `;
+            }
+        }
+
+        function login() {
+            if (tokenClient) {
+                tokenClient.requestAccessToken({ prompt: 'select_account' });
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem(AUTH_STORAGE_KEY);
+            const tokenToRevoke = currentUser?.accessToken;
+            currentUser = null;
+            updateAuthUI();
+            if (tokenToRevoke && window.google?.accounts?.oauth2) {
+                try {
+                    window.google.accounts.oauth2.revoke(tokenToRevoke, () => {});
+                } catch (e) {}
+            }
+        }
+
+        // Form handling
+        document.getElementById('analyze-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const url = document.getElementById('url-input').value.trim();
+            if (!url) return;
+
+            const numClips = parseInt(document.getElementById('num-clips-select').value, 10);
+            const btn = document.getElementById('analyze-btn');
+            btn.textContent = 'Analyzing...';
+            btn.disabled = true;
+
+            // Show animated progress screen
+            showGeneratingScreen();
+            startGenProgress(numClips);
+            document.getElementById('gen-subtitle').textContent = `Analyzing video and scoring ${numClips} highlight(s)...`;
+
+            try {
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, num_clips: numClips })
+                });
+
+                const data = await response.json();
+                if (!response.ok || data.error) {
+                    failGenProgress(data.error || 'Failed to analyze video');
+                    setTimeout(() => {
+                        document.getElementById('step-generating').classList.add('hidden');
+                        document.getElementById('step-input').classList.remove('hidden');
+                        alert(data.error || 'Failed to analyze video');
+                    }, 1200);
+                    return;
+                }
+
+                const customSuffix = document.getElementById('custom-caption-input').value.trim();
+                currentMetadata = data.metadata;
+                currentClips = data.clips.map(clip => {
+                    let desc = clip.description || '';
+                    if (customSuffix) {
+                        desc = desc ? `${desc}\n\n${customSuffix}` : customSuffix;
+                    }
+                    return { ...clip, description: desc, privacyStatus: 'public' };
+                });
+
+                finishGenProgress(currentClips.length);
+                // Brief pause so user sees the Done state, then open post-count modal
+                setTimeout(() => {
+                    document.getElementById('step-generating').classList.add('hidden');
+                    openPostCountModal();
+                }, 900);
+
+            } catch (error) {
+                failGenProgress(error.message);
+                setTimeout(() => {
+                    document.getElementById('step-generating').classList.add('hidden');
+                    document.getElementById('step-input').classList.remove('hidden');
+                    alert('Analysis failed: ' + error.message);
+                }, 1200);
+            } finally {
+                btn.textContent = 'Generate Clips';
+                btn.disabled = false;
+            }
+        });
+
+        function updatePrivacySetting(clipId, privacy) {
+            const clip = currentClips.find(c => c.id === clipId);
+            if (clip) {
+                clip.privacyStatus = privacy;
+            }
+        }
+
+        function updateClipTitle(clipId, newTitle) {
+            const clip = currentClips.find(c => c.id === clipId);
+            if (clip) {
+                clip.title = newTitle;
+            }
+        }
+
+        function updateClipDescription(clipId, newDesc) {
+            const clip = currentClips.find(c => c.id === clipId);
+            if (clip) {
+                clip.description = newDesc;
+            }
+        }
+
+        // Internal helper: renders the full clip preview grid
+        function _showPreviewGrid() {
+            document.getElementById('step-preview').classList.remove('hidden');
+
+            const allClips = currentClips; // may already be sliced if user chose "post selected"
+            const videoLabel = currentMetadata.local
+                ? currentMetadata.filename || currentMetadata.title
+                : currentMetadata.title;
+            document.getElementById('preview-subtitle').textContent = `Reviewing ${allClips.length} clip(s) from: ${videoLabel}`;
+
+            const thumbnailHtml = currentMetadata.thumbnail
+                ? `<img src="${currentMetadata.thumbnail}" class="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-500" />`
+                : `<div class="w-full h-full bg-gradient-to-br from-indigo-900/50 to-purple-900/30 flex items-center justify-center">
+                     <svg class="w-16 h-16 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                   </div>`;
+
+            const grid = document.getElementById('clips-grid');
+            grid.innerHTML = allClips.map(clip => `
+                <div class="glass-card rounded-3xl overflow-hidden flex flex-col border border-slate-700/50 hover:border-indigo-500/40 transition-all">
+                    <div class="aspect-video bg-slate-800 relative group overflow-hidden">
+                        ${thumbnailHtml}
+                        <div class="absolute bottom-3 right-3 px-3 py-1 bg-indigo-600/90 rounded-lg text-xs font-bold shadow-lg">
+                            ${clip.startTime} - ${clip.endTime}
+                        </div>
+                        ${clip.transcript_fallback ? `
+                            <div class="absolute top-3 left-3 px-2.5 py-1 bg-yellow-500/20 border border-yellow-500/40 backdrop-blur rounded-md text-[10px] font-bold text-yellow-300">
+                                ⚠️ Random (No Transcript)
+                            </div>
+                        ` : `
+                            <div class="absolute top-3 left-3 px-2.5 py-1 bg-indigo-500/20 border border-indigo-500/40 backdrop-blur rounded-md text-[10px] font-bold text-indigo-300">
+                                ✨ AI Groq Highlight
+                            </div>
+                        `}
+                    </div>
+                    <div class="p-6 flex-1 flex flex-col">
+                        <!-- Editable Clip Title -->
+                        <div class="mb-3">
+                            <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                Clip Title
+                            </label>
+                            <input 
+                                type="text"
+                                value="${(clip.title || '').replace(/"/g, '&quot;')}"
+                                oninput="updateClipTitle(${clip.id}, this.value)"
+                                class="w-full px-3 py-2 bg-slate-900 border border-slate-700/80 rounded-lg text-sm font-bold text-white focus:outline-none focus:border-indigo-500 transition-all"
+                            />
+                        </div>
+
+                        <!-- Editable Caption / Description -->
+                        <div class="mb-3">
+                            <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                Caption / Description
+                            </label>
+                            <textarea 
+                                rows="4"
+                                oninput="updateClipDescription(${clip.id}, this.value)"
+                                class="w-full px-3 py-2 bg-slate-900 border border-slate-700/80 rounded-lg text-xs text-slate-300 focus:outline-none focus:border-indigo-500 transition-all leading-relaxed"
+                            >${clip.description || ''}</textarea>
+                        </div>
+
+                        <p class="text-[11px] text-indigo-300/80 italic mb-4">" ${clip.reasoning} "</p>
+                        
+                        <div class="flex flex-wrap gap-1.5 mb-6">
+                            ${(clip.suggestedTags || []).map(t => `
+                                <span class="px-2 py-0.5 bg-slate-800 border border-slate-700/50 rounded text-[9px] text-slate-400 font-bold tracking-tight lowercase">#${t}</span>
+                            `).join('')}
+                        </div>
+
+                        <!-- Privacy Setting Selector -->
+                        <div class="mb-4 pt-3 border-t border-slate-800">
+                            <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                                Upload Privacy
+                            </label>
+                            <select 
+                                onchange="updatePrivacySetting(${clip.id}, this.value)"
+                                class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs font-medium text-slate-200 focus:outline-none focus:border-indigo-500"
+                            >
+                                <option value="public" ${clip.privacyStatus === 'public' ? 'selected' : ''}>🌐 Public</option>
+                                <option value="unlisted" ${clip.privacyStatus === 'unlisted' ? 'selected' : ''}>🔗 Unlisted</option>
+                                <option value="private" ${clip.privacyStatus === 'private' ? 'selected' : ''}>🔒 Private</option>
+                            </select>
+                        </div>
+
+                        <button onclick="downloadClip(${clip.id})" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-lg transition-all active:scale-95 flex items-center justify-center gap-2">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                            Download Cut Clip (.mp4)
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Legacy showPreview: now opens post-count modal instead of grid directly
+        // (called from analyzeLocalVideo and the URL form after analysis)
+        function showPreview() {
+            // Hide generating screen if still visible
+            document.getElementById('step-generating').classList.add('hidden');
+            document.getElementById('step-input').classList.add('hidden');
+            openPostCountModal();
+        }
+
+        // Start processing button opens confirmation modal
+        document.getElementById('start-processing-btn').addEventListener('click', () => {
+            if (!currentUser) {
+                login();
+                return;
+            }
+            openConfirmationModal();
+        });
+
+        function openConfirmationModal() {
+            document.getElementById('confirm-clip-count').textContent = currentClips.length;
+            const summaryContainer = document.getElementById('modal-clips-summary');
+            summaryContainer.innerHTML = currentClips.map(clip => `
+                <div class="p-3 bg-slate-900/80 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
+                    <div class="truncate max-w-[280px]">
+                        <p class="font-bold text-white truncate">${clip.title}</p>
+                        <p class="text-slate-500 text-[10px]">${clip.startTime} - ${clip.endTime}</p>
+                    </div>
+                    <span class="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase ${
+                        clip.privacyStatus === 'public' ? 'bg-green-500/10 text-green-400 border border-green-500/30' :
+                        clip.privacyStatus === 'unlisted' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/30' :
+                        'bg-red-500/10 text-red-400 border border-red-500/30'
+                    }">
+                        ${clip.privacyStatus}
+                    </span>
+                </div>
+            `).join('');
+            document.getElementById('confirmation-modal').classList.remove('hidden');
+        }
+
+        function closeConfirmationModal() {
+            document.getElementById('confirmation-modal').classList.add('hidden');
+        }
+
+        function executeUploadQueue() {
+            closeConfirmationModal();
+            showQueue();
+        }
+
+        function showQueue() {
+            document.getElementById('step-preview').classList.add('hidden');
+            document.getElementById('step-queue').classList.remove('hidden');
+            
+            const queueList = document.getElementById('queue-list');
+            queueList.innerHTML = currentClips.map(clip => `
+                <div class="p-6 bg-slate-800/40 rounded-2xl border border-slate-700/30 flex flex-col gap-4" id="queue-${clip.id}">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h4 class="font-bold text-white">${clip.title}</h4>
+                            <p class="text-[10px] uppercase tracking-widest font-bold mt-1 text-indigo-400" id="status-${clip.id}">
+                                pending
+                            </p>
+                        </div>
+                        <span class="text-sm font-bold text-slate-400" id="progress-${clip.id}">0%</span>
+                    </div>
+                    <div class="h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                        <div class="h-full bg-indigo-500 transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(99,102,241,0.5)]" style="width: 0%" id="bar-${clip.id}"></div>
+                    </div>
+                    <div class="hidden text-xs text-red-400 bg-red-500/10 p-2.5 rounded-lg border border-red-500/20" id="error-${clip.id}"></div>
+                </div>
+            `).join('');
+
+            // Initiate backend task execution
+            processClips();
+        }
+
+        async function processClips() {
+            try {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        clips: currentClips,
+                        access_token: currentUser.accessToken,
+                        original_url: document.getElementById('url-input').value
+                    })
+                });
+
+                const data = await response.json();
+                if (!response.ok || data.error) {
+                    alert('Upload initialization failed: ' + (data.error || 'Server error'));
+                    return;
+                }
+
+                const jobId = data.job_id;
+                pollJobStatus(jobId);
+
+            } catch (error) {
+                alert('Processing connection failed: ' + error.message);
+            }
+        }
+
+        function pollJobStatus(jobId) {
+            const interval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/api/status/${jobId}`);
+                    const data = await response.json();
+                    
+                    if (data.status === 'completed' || data.status === 'failed') {
+                        clearInterval(interval);
+                        if (data.results && data.results.length > 0) {
+                            data.results.forEach(result => {
+                                updateProgress(result.id, result.status, result.progress || 100, result.error);
+                            });
+                        }
+                        document.getElementById('completion-section').classList.remove('hidden');
+                    } else if (data.results) {
+                        data.results.forEach(result => {
+                            updateProgress(result.id, result.status, result.progress || 50, result.error);
+                        });
+                    }
+                } catch (error) {
+                    console.error('Status check failed:', error);
+                }
+            }, 2000);
+        }
+
+        function updateProgress(clipId, status, progress, errorMsg) {
+            const statusEl = document.getElementById(`status-${clipId}`);
+            const progressEl = document.getElementById(`progress-${clipId}`);
+            const barEl = document.getElementById(`bar-${clipId}`);
+            const errorEl = document.getElementById(`error-${clipId}`);
+
+            if (statusEl) statusEl.textContent = status;
+            if (progressEl) progressEl.textContent = `${progress}%`;
+            if (barEl) barEl.style.width = `${progress}%`;
+
+            if (status === 'failed' && errorMsg && errorEl) {
+                errorEl.textContent = errorMsg;
+                errorEl.classList.remove('hidden');
+            }
+        }
+
+        function downloadClip(clipId) {
+            const downloadUrl = `/api/download/${clipId}`;
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Initialize
+        initGoogleAuth();
+    </script>
+
+</body>
+</html>

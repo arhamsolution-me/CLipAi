@@ -1,0 +1,27 @@
+# Environment variables
+.env
+
+# Node modules
+node_modules/
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Database and Python cache
+*.db
+__pycache__/
+instance/
+
+# Generated media clips
+clips/*
+!clips/.gitkeep
+
+# Credentials and secrets
+client_secret*.json
+client_secrets*.json
+token*.json
+token*.pickle

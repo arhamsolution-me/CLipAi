@@ -48,6 +48,14 @@ class Clip(db.Model):
     error_message = db.Column(db.Text, nullable=True)
     youtube_url = db.Column(db.String(255), nullable=True)
     transcript_fallback = db.Column(db.Boolean, default=False)
+    
+    # Phase 1 — Animated Captions fields
+    has_captions = db.Column(db.Boolean, default=True)
+    caption_style = db.Column(db.String(50), default='tiktok_pop')  # tiktok_pop, bounce, highlight_word
+    caption_font = db.Column(db.String(100), default='Arial Black')
+    caption_color = db.Column(db.String(20), default='#FFFF00')  # Yellow highlight color hex
+    caption_language = db.Column(db.String(10), default='auto')  # auto, en, es, fr, ar, ur, de, etc.
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def get_tags(self):
@@ -88,6 +96,11 @@ class Clip(db.Model):
             'error': self.error_message,
             'youtube_url': self.youtube_url,
             'transcript_fallback': self.transcript_fallback,
+            'has_captions': self.has_captions if self.has_captions is not None else True,
+            'caption_style': self.caption_style or 'tiktok_pop',
+            'caption_font': self.caption_font or 'Arial Black',
+            'caption_color': self.caption_color or '#FFFF00',
+            'caption_language': self.caption_language or 'auto',
             'progress': progress_map.get(self.status, 0)
         }
 

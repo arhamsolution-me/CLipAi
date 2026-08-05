@@ -519,6 +519,66 @@ def download_clip(clip_id):
         logger.error(f"Error generating download for clip {clip_id}: {e}")
         return jsonify({'error': f"Failed to prepare clip download: {str(e)}"}), 500
 
+@app.route('/api/clip/<int:clip_id>/caption-style', methods=['PATCH'])
+@limiter.exempt
+def update_clip_caption_style(clip_id):
+    """
+    PATCH endpoint to update clip caption settings (style, font, color, language)
+    and re-render captions on the clip file if present.
+    """
+    clip = db.session.query(Clip).filter_by(id=clip_id).first()
+    if not clip:
+        return jsonify({'error': 'Clip record not found'}), 404
+
+    data = request.get_json() or {}
+    if 'caption_style' in data:
+        clip.caption_style = str(data['caption_style'])
+    if 'caption_font' in data:
+        clip.caption_font = str(data['caption_font'])
+    if 'caption_color' in data:
+        clip.caption_color = str(data['caption_color'])
+    if 'caption_language' in data:
+        clip.caption_language = str(data['caption_language'])
+    if 'has_captions' in data:
+        clip.has_captions = bool(data['has_captions'])
+
+    db.session.commit()
+
+    # Re-render captions if file exists
+    clips_folder = os.path.join(app.root_path, 'clips')
+    expected_path = os.path.join(clips_folder, f'clip_{clip.id}.mp4')
+    raw_path = os.path.join(clips_folder, f'raw_clip_{clip.id}.mp4')
+
+    if os.path.exists(expected_path) or os.path.exists(raw_path):
+        try:
+            from services.caption_service import process_clip_captions
+            source_for_captions = raw_path if os.path.exists(raw_path) else expected_path
+            temp_output = os.path.join(clips_folder, f'recap_{clip.id}.mp4')
+            duration = max(1.0, clip.end_seconds - clip.start_seconds)
+
+            process_clip_captions(
+                clip_video_path=source_for_captions,
+                output_video_path=temp_output,
+                fallback_transcript=clip.description,
+                clip_duration=duration,
+                caption_style=clip.caption_style,
+                caption_font=clip.caption_font,
+                caption_color=clip.caption_color,
+                caption_language=clip.caption_language,
+                temp_dir=clips_folder
+            )
+
+            if os.path.exists(expected_path):
+                os.remove(expected_path)
+            os.rename(temp_output, expected_path)
+            clip.file_path = expected_path
+            db.session.commit()
+        except Exception as e:
+            logger.error(f"Failed to re-render captions for clip {clip_id}: {e}")
+            return jsonify({'warning': 'Updated DB settings, but re-render failed', 'error': str(e), 'clip': clip.to_dict()}), 200
+
+    return jsonify({'message': 'Caption style updated successfully', 'clip': clip.to_dict()})
+
 @app.route('/api/admin/cleanup', methods=['POST'])
 @limiter.exempt
 def trigger_cleanup():

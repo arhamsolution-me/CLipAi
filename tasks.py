@@ -142,7 +142,7 @@ def process_job_task(job_id: str, access_token: str, app_factory_func=None):
                     db.session.commit()
                     continue
 
-            # Sub-step 2: FFmpeg crop to exact timestamps & reformat to 9:16
+            # Sub-step 2: FFmpeg crop to exact timestamps & reformat to 9:16 + Burn Captions
             clip.status = 'processing'
             db.session.commit()
 
@@ -155,17 +155,43 @@ def process_job_task(job_id: str, access_token: str, app_factory_func=None):
                     # The segment was downloaded starting from (start - buffer), so
                     # the clip starts at buffer offset (2s) within the segment file.
                     seg_offset = min(clip.start_seconds, 2.0)
+
+                raw_clip_path = os.path.join(clips_folder, f'raw_clip_{clip.id}.mp4')
                 cut_and_format_clip(
                     source_video_path=seg_path,
                     start_seconds=seg_offset,
                     duration_seconds=duration,
-                    output_clip_path=output_clip_path
+                    output_clip_path=raw_clip_path
                 )
+
+                # Process Captions (Phase 1) if enabled
+                if getattr(clip, 'has_captions', True):
+                    from services.caption_service import process_clip_captions
+                    logger.info(f"Processing captions for clip {clip.id} (style: {clip.caption_style})...")
+                    process_clip_captions(
+                        clip_video_path=raw_clip_path,
+                        output_video_path=output_clip_path,
+                        fallback_transcript=clip.description,
+                        clip_duration=duration,
+                        caption_style=clip.caption_style or 'tiktok_pop',
+                        caption_font=clip.caption_font or 'Arial Black',
+                        caption_color=clip.caption_color or '#FFFF00',
+                        caption_language=clip.caption_language or 'auto',
+                        temp_dir=clips_folder
+                    )
+                    if os.path.exists(raw_clip_path):
+                        os.remove(raw_clip_path)
+                else:
+                    # No captions, move raw cut to output clip path
+                    if os.path.exists(output_clip_path):
+                        os.remove(output_clip_path)
+                    os.rename(raw_clip_path, output_clip_path)
+
                 clip.file_path = output_clip_path
                 db.session.commit()
             except Exception as ffmpeg_err:
-                error_msg = f"Step 2 Failed (FFmpeg): {str(ffmpeg_err)}"
-                logger.error(f"Clip {clip.id} FFmpeg error: {error_msg}")
+                error_msg = f"Step 2 Failed (FFmpeg/Captions): {str(ffmpeg_err)}"
+                logger.error(f"Clip {clip.id} error: {error_msg}")
                 clip.status = 'failed'
                 clip.error_message = error_msg
                 db.session.commit()

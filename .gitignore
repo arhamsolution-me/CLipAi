@@ -1,8 +1,9 @@
 # Environment variables
 .env
 
-# Node modules
+# Node modules and Python environments
 node_modules/
+venv/
 
 # Logs
 *.log

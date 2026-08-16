@@ -1,0 +1,151 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------------------------
+// USER & AUTHENTICATION (Multi-tenant SaaS)
+// -----------------------------------------------------------------------------
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  clerkId       String?   @unique
+  name          String?
+  image         String?
+  role          String    @default("USER")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  projects      Project[]
+  clips         Clip[]
+  brandKit      BrandKit?
+  subscription  Subscription?
+  usage         Usage?
+}
+
+
+
+// -----------------------------------------------------------------------------
+// BILLING & USAGE
+// -----------------------------------------------------------------------------
+model Subscription {
+  id                     String    @id @default(cuid())
+  userId                 String    @unique
+  user                   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stripeCustomerId       String?   @unique
+  stripeSubscriptionId   String?   @unique
+  stripePriceId          String?
+  planId                 String    // e.g., 'free', 'starter', 'pro'
+  status                 String    // e.g., 'active', 'canceled', 'past_due'
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  cancelAtPeriodEnd      Boolean   @default(false)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+}
+
+model Usage {
+  id                     String    @id @default(cuid())
+  userId                 String    @unique
+  user                   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  processingMinutesUsed  Float     @default(0)
+  clipsGenerated         Int       @default(0)
+  storageBytesUsed       BigInt    @default(0)
+  resetDate              DateTime
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+}
+
+// -----------------------------------------------------------------------------
+// CORE ENTITIES (Projects & Clips)
+// -----------------------------------------------------------------------------
+model Project {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title         String
+  youtubeUrl    String
+  videoId       String
+  duration      Int       @default(0)
+  thumbnail     String?
+  status        String    @default("processing") // pending, processing, completed, failed
+  errorMessage  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  clips         Clip[]
+  jobs          Job[]
+}
+
+model Clip {
+  id                  String    @id @default(cuid())
+  projectId           String
+  project             Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId              String
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clipIdNum           Int
+  
+  // Timestamps & Duration
+  startSeconds        Float
+  endSeconds          Float
+  startTime           String
+  endTime             String
+  
+  // AI Metadata
+  title               String
+  description         String
+  suggestedTags       String
+  reasoning           String?
+  score               Int       @default(0)
+  
+  // Rendering Preferences
+  captionStyle        String    @default("tiktok_pop")
+  captionFont         String    @default("Arial Black")
+  captionColor        String    @default("#FFFF00")
+  captionPosition     String    @default("bottom")
+  hasWatermark        Boolean   @default(true)
+  audioEnhance        Boolean   @default(false)
+  
+  // Assets & Status
+  storageUrl          String?   // S3 URL
+  status              String    @default("analyzed") // analyzed, rendering, completed, failed
+  errorMessage        String?
+  
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+// -----------------------------------------------------------------------------
+// BACKGROUND PROCESSING
+// -----------------------------------------------------------------------------
+model Job {
+  id            String    @id @default(cuid())
+  type          String    // e.g., 'extract_video', 'render_clip'
+  status        String    @default("queued") // queued, processing, completed, failed
+  projectId     String?
+  project       Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  progress      Int       @default(0)
+  resultData    String?   // JSON string of result or error
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// -----------------------------------------------------------------------------
+// USER BRANDING
+// -----------------------------------------------------------------------------
+model BrandKit {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  logoUrl       String?
+  brandColor    String?
+  watermarkText String?
+  position      String    @default("bottom-right")
+  opacity       Float     @default(0.8)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}

@@ -1,2175 +1,281 @@
 <!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>ClipAI Studio | AI-Driven Viral Video Clipping &amp; Auto-Publishing</title>
-  <meta name="description" content="Turn 1 long video into viral short-form clips with AI speaker face-tracking, kinetic auto-captions, and instant multi-platform publishing."/>
-  
-  <!-- Google Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
-
-  <!-- Google Identity Services (OAuth2) -->
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-
-  <!-- Tailwind CSS CDN with Lumen Motion design system config -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: "class",
-      theme: {
-        extend: {
-          colors: {
-            "surface": "#0b1326",
-            "surface-dim": "#0b1326",
-            "surface-bright": "#31394d",
-            "surface-container-lowest": "#060e20",
-            "surface-container-low": "#131b2e",
-            "surface-container": "#171f33",
-            "surface-container-high": "#222a3d",
-            "surface-container-highest": "#2d3449",
-            "on-surface": "#dae2fd",
-            "on-surface-variant": "#d1c6ab",
-            "inverse-surface": "#dae2fd",
-            "inverse-on-surface": "#283044",
-            "outline": "#9a9078",
-            "outline-variant": "#4d4632",
-            "surface-tint": "#eec200",
-            "primary": "#ffecb9",
-            "on-primary": "#3c2f00",
-            "primary-container": "#facc15",
-            "on-primary-container": "#6c5700",
-            "inverse-primary": "#735c00",
-            "secondary": "#c6c6c7",
-            "on-secondary": "#2f3131",
-            "secondary-container": "#454747",
-            "on-secondary-container": "#b4b5b5",
-            "tertiary": "#c7f5ff",
-            "on-tertiary": "#00363e",
-            "tertiary-container": "#33e4ff",
-            "on-tertiary-container": "#006270",
-            "error": "#ffb4ab",
-            "on-error": "#690005",
-            "error-container": "#93000a",
-            "on-error-container": "#ffdad6",
-            "primary-fixed": "#ffe083",
-            "primary-fixed-dim": "#eec200",
-            "tertiary-fixed": "#a0efff",
-            "tertiary-fixed-dim": "#15daf4",
-            "background": "#0b1326"
-          },
-          fontFamily: {
-            sans: ['Inter', 'sans-serif'],
-            mono: ['Geist', 'monospace'],
-            display: ['Inter', 'sans-serif']
-          }
-        }
-      }
-    };
-  </script>
-
-  <style>
-    @layer base {
-      html, body {
-        margin: 0;
-        padding: 0;
-        background-color: #0b1326;
-        color: #dae2fd;
-        font-family: 'Inter', sans-serif;
-        overflow-x: hidden;
-      }
-    }
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    ::-webkit-scrollbar-track {
-      background: #060e20;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: #2d3449;
-      border-radius: 3px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: #4d4632;
-    }
-    @keyframes marquee {
-      0% { transform: translateX(0%); }
-      100% { transform: translateX(-50%); }
-    }
-    .animate-marquee {
-      display: flex;
-      width: 200%;
-      animation: marquee 35s linear infinite;
-    }
-    .animate-marquee:hover {
-      animation-play-state: paused;
-    }
-    .glow-yellow {
-      box-shadow: 0 0 25px rgba(250, 204, 21, 0.35);
-    }
-    .glow-cyan {
-      box-shadow: 0 0 25px rgba(51, 228, 255, 0.3);
-    }
-    .material-symbols-outlined {
-      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-      vertical-align: middle;
-    }
-    .filled-icon {
-      font-variation-settings: 'FILL' 1;
-    }
-    @keyframes spin-slow {
-      to { transform: rotate(360deg); }
-    }
-    .spin-slow {
-      animation: spin-slow 2s linear infinite;
-    }
-    .line-clamp-2 {
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-    }
-  </style>
-</head>
-<body class="bg-background text-on-surface antialiased selection:bg-primary-container selection:text-on-primary-container">
-
-  <!-- HIDDEN LOCAL FILE INPUT -->
-  <input type="file" id="global-file-input" accept="video/mp4,video/mov,video/avi,video/mkv,video/webm" class="hidden" onchange="handleFileSelected(this.files[0])"/>
-
-  <!-- TOAST CONTAINER -->
-  <div id="toast-container" class="fixed bottom-6 right-6 z-[100] flex flex-col gap-3 pointer-events-none"></div>
-
-  <!-- MOBILE SIDEBAR OVERLAY -->
-  <div id="sidebar-overlay" class="fixed inset-0 z-20 bg-black/50 hidden lg:hidden" onclick="toggleMobileSidebar()"></div>
-
-  <!-- MODAL: AUTO-CLIP PROCESSING PIPELINE -->
-  <div id="processing-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md hidden items-center justify-center p-4">
-    <div class="bg-surface-container-low border border-surface-container-highest rounded-3xl p-8 max-w-lg w-full shadow-2xl relative">
-      <div class="flex items-center justify-between mb-6">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-primary-container text-on-primary-container flex items-center justify-center font-bold">
-            <span class="material-symbols-outlined spin-slow text-xl">smart_toy</span>
-          </div>
-          <div>
-            <h3 class="text-lg font-bold text-on-surface">ClipAI Neural Pipeline</h3>
-            <p class="text-xs text-on-surface-variant font-mono" id="processing-source-label">Processing Stream</p>
-          </div>
-        </div>
-        <button onclick="closeProcessingModal()" class="text-on-surface-variant hover:text-white transition-colors">
-          <span class="material-symbols-outlined">close</span>
-        </button>
-      </div>
-
-      <!-- Step items -->
-      <div class="space-y-4 mb-6">
-        <div class="flex items-center gap-3 text-sm font-medium transition-all" id="proc-step-1">
-          <span class="material-symbols-outlined text-primary-container animate-pulse" id="proc-icon-1">check_circle</span>
-          <span class="text-on-surface" id="proc-label-1">Downloading &amp; Ingesting Video Stream (1080p60)</span>
-        </div>
-        <div class="flex items-center gap-3 text-sm text-on-surface-variant transition-all" id="proc-step-2">
-          <span class="material-symbols-outlined" id="proc-icon-2">radio_button_unchecked</span>
-          <span id="proc-label-2">Whisper V3: Transcribing Speech &amp; Topic Spikes</span>
-        </div>
-        <div class="flex items-center gap-3 text-sm text-on-surface-variant transition-all" id="proc-step-3">
-          <span class="material-symbols-outlined" id="proc-icon-3">radio_button_unchecked</span>
-          <span id="proc-label-3">Groq AI: Scoring Viral Highlights &amp; Hooks</span>
-        </div>
-        <div class="flex items-center gap-3 text-sm text-on-surface-variant transition-all" id="proc-step-4">
-          <span class="material-symbols-outlined" id="proc-icon-4">radio_button_unchecked</span>
-          <span id="proc-label-4">Generating Optimized SEO Metadata &amp; Hashtags</span>
-        </div>
-      </div>
-
-      <!-- Progress bar -->
-      <div class="w-full bg-surface-container-highest h-2.5 rounded-full overflow-hidden mb-3">
-        <div id="processing-bar" class="bg-primary-container h-full w-[15%] transition-all duration-300 shadow-[0_0_12px_#facc15]"></div>
-      </div>
-      <div class="flex justify-between items-center text-xs font-mono text-on-surface-variant">
-        <span id="processing-status-text">Ingesting video &amp; audio waveform...</span>
-        <span id="processing-percentage" class="text-primary-container font-bold">15%</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL: ADD / CONNECT PLATFORM -->
-  <div id="platform-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4">
-    <div class="bg-surface-container-low border border-surface-container-highest rounded-2xl p-6 max-w-md w-full shadow-2xl">
-      <div class="flex items-center justify-between mb-5">
-        <h3 class="text-lg font-bold text-on-surface flex items-center gap-2">
-          <span class="material-symbols-outlined text-tertiary-fixed">hub</span> Connect Social Account
-        </h3>
-        <button onclick="toggleModal('platform-modal', false)" class="text-on-surface-variant hover:text-white">
-          <span class="material-symbols-outlined">close</span>
-        </button>
-      </div>
-      <p class="text-xs text-on-surface-variant mb-4">Connect your creator channel for 1-click automatic scheduled publishing with optimized hashtags.</p>
-      
-      <div class="space-y-3 mb-6">
-        <button onclick="connectYouTubeAuth()" class="w-full p-3 rounded-xl bg-surface-container flex items-center justify-between hover:bg-surface-container-high border border-surface-container-highest transition-all group">
-          <div class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-lg bg-[#ff0000] text-white flex items-center justify-center">
-              <span class="material-symbols-outlined text-sm filled-icon">play_circle</span>
-            </div>
-            <div class="text-left">
-              <p class="text-sm font-bold text-on-surface">YouTube Studio (Google OAuth)</p>
-              <p class="text-xs text-on-surface-variant" id="modal-yt-status">Auto-shorts with tags</p>
-            </div>
-          </div>
-          <span class="text-xs font-mono text-primary-container group-hover:underline" id="modal-yt-action">Connect &rarr;</span>
-        </button>
-
-        <button onclick="connectSocialMock('TikTok', '@creator_ai')" class="w-full p-3 rounded-xl bg-surface-container flex items-center justify-between hover:bg-surface-container-high border border-surface-container-highest transition-all group">
-          <div class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-lg bg-black text-white flex items-center justify-center font-bold">
-              <span class="material-symbols-outlined text-sm">music_note</span>
-            </div>
-            <div class="text-left">
-              <p class="text-sm font-bold text-on-surface">TikTok Creator Portal</p>
-              <p class="text-xs text-on-surface-variant">Auto-publish TikToks</p>
-            </div>
-          </div>
-          <span class="text-xs font-mono text-primary-container group-hover:underline">Connect &rarr;</span>
-        </button>
-
-        <button onclick="connectSocialMock('Instagram Reels', '@creator.reels')" class="w-full p-3 rounded-xl bg-surface-container flex items-center justify-between hover:bg-surface-container-high border border-surface-container-highest transition-all group">
-          <div class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-[#f09433] via-[#e6683c] to-[#bc1888] text-white flex items-center justify-center">
-              <span class="material-symbols-outlined text-sm">photo_camera</span>
-            </div>
-            <div class="text-left">
-              <p class="text-sm font-bold text-on-surface">Instagram Professional</p>
-              <p class="text-xs text-on-surface-variant">Reels &amp; Stories direct</p>
-            </div>
-          </div>
-          <span class="text-xs font-mono text-primary-container group-hover:underline">Connect &rarr;</span>
-        </button>
-
-        <button onclick="connectSocialMock('X / Twitter', '@creator_clips')" class="w-full p-3 rounded-xl bg-surface-container flex items-center justify-between hover:bg-surface-container-high border border-surface-container-highest transition-all group">
-          <div class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-lg bg-[#14171A] text-white flex items-center justify-center font-bold text-xs">
-              𝕏
-            </div>
-            <div class="text-left">
-              <p class="text-sm font-bold text-on-surface">X Video</p>
-              <p class="text-xs text-on-surface-variant">Thread clip posts</p>
-            </div>
-          </div>
-          <span class="text-xs font-mono text-primary-container group-hover:underline">Connect &rarr;</span>
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL: EXPORT & DOWNLOAD -->
-  <div id="export-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4">
-    <div class="bg-surface-container-low border border-surface-container-highest rounded-2xl p-6 max-w-lg w-full shadow-2xl">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-bold text-on-surface flex items-center gap-2">
-          <span class="material-symbols-outlined text-primary-container">download</span> Export &amp; Download Clip
-        </h3>
-        <button onclick="toggleModal('export-modal', false)" class="text-on-surface-variant hover:text-white">
-          <span class="material-symbols-outlined">close</span>
-        </button>
-      </div>
-      
-      <div class="grid grid-cols-2 gap-3 mb-4">
-        <div class="p-3 bg-surface-container rounded-xl border border-primary-container/40">
-          <label class="text-[11px] font-mono text-on-surface-variant block mb-1">FORMAT</label>
-          <select id="export-format" class="w-full bg-surface-container-lowest text-sm text-on-surface rounded p-2 border border-surface-container-highest outline-none">
-            <option value="mp4">MP4 (H.264 High)</option>
-            <option value="webm">WebM (Fast Stream)</option>
-          </select>
-        </div>
-        <div class="p-3 bg-surface-container rounded-xl border border-surface-container-highest">
-          <label class="text-[11px] font-mono text-on-surface-variant block mb-1">RESOLUTION</label>
-          <select id="export-res" class="w-full bg-surface-container-lowest text-sm text-on-surface rounded p-2 border border-surface-container-highest outline-none">
-            <option value="1080p">1080x1920 (Shorts/TikTok HD)</option>
-            <option value="720p">720x1280 (Fast Export)</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="bg-surface-container p-4 rounded-xl mb-6">
-        <h4 class="text-xs font-bold text-on-surface uppercase tracking-wider mb-2">Publish &amp; Download Options</h4>
-        <div class="space-y-2">
-          <label class="flex items-center justify-between text-xs text-on-surface cursor-pointer">
-            <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-primary-container"></span> Direct MP4 Cut Download</span>
-            <input type="checkbox" checked id="export-opt-download" class="accent-primary-container w-4 h-4"/>
-          </label>
-          <label class="flex items-center justify-between text-xs text-on-surface cursor-pointer">
-            <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-tertiary-fixed"></span> Auto-Upload to YouTube Shorts</span>
-            <input type="checkbox" id="export-opt-yt" class="accent-primary-container w-4 h-4"/>
-          </label>
-        </div>
-      </div>
-
-      <div class="flex items-center justify-end gap-3">
-        <button onclick="toggleModal('export-modal', false)" class="px-4 py-2 rounded-xl text-xs font-bold text-on-surface-variant hover:bg-surface-container">Cancel</button>
-        <button onclick="executeExportFlow()" class="px-5 py-2.5 rounded-xl bg-primary-container text-on-primary-container font-bold text-xs hover:bg-primary-fixed flex items-center gap-2 shadow-lg shadow-primary-container/20">
-          <span class="material-symbols-outlined text-sm">download_done</span> Render &amp; Download
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- MAIN APP CONTAINER -->
-  <div id="app-root" class="min-h-screen flex flex-col">
-
-    <!-- ========================================== -->
-    <!-- VIEW 1: LANDING PAGE -->
-    <!-- ========================================== -->
-    <div id="view-landing" class="view-panel block">
-      <!-- Landing Header -->
-      <header class="fixed top-0 w-full z-50 bg-surface/85 backdrop-blur-xl border-b border-surface-container-high/60 shadow-lg">
-        <div class="max-w-7xl mx-auto h-16 px-4 md:px-8 flex items-center justify-between">
-          <div class="flex items-center gap-8">
-            <a href="#" onclick="switchView('landing')" class="flex items-center gap-2.5 group">
-              <div class="w-9 h-9 rounded-xl bg-primary-container flex items-center justify-center text-on-primary-container shadow-md group-hover:scale-105 transition-transform">
-                <span class="material-symbols-outlined font-bold text-xl filled-icon">movie_filter</span>
-              </div>
-              <span class="text-xl font-extrabold tracking-tight text-white flex items-center">
-                Clip<span class="text-primary-container">AI</span>
-              </span>
-            </a>
-            <nav class="hidden md:flex items-center gap-6 text-xs font-mono tracking-wider uppercase text-on-surface-variant">
-              <a href="#features" class="hover:text-primary-container transition-colors">Features</a>
-              <a href="#demos" class="hover:text-primary-container transition-colors">Demos</a>
-              <a href="#social-proof" class="hover:text-primary-container transition-colors">Creators</a>
-            </nav>
-          </div>
-          <div class="flex items-center gap-3">
-            <div id="landing-auth-badge">
-              <button onclick="connectYouTubeAuth()" class="text-xs font-mono uppercase px-4 py-2 text-on-surface-variant hover:text-white transition-colors">
-                Connect YouTube
-              </button>
-            </div>
-            <button onclick="switchView('app')" class="bg-primary-container text-on-primary-container font-bold text-xs uppercase px-5 py-2.5 rounded-full hover:bg-primary-fixed transition-all hover:scale-105 shadow-[0_0_15px_rgba(250,204,21,0.3)]">
-              Open Studio
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <!-- Hero Section -->
-      <section class="relative pt-32 pb-20 px-4 md:px-8 overflow-hidden min-h-[92vh] flex flex-col items-center justify-center">
-        <div class="absolute inset-0 z-0 opacity-35 pointer-events-none" style="background: radial-gradient(circle at 50% 30%, rgba(250,204,21,0.18) 0%, rgba(11,19,38,0) 65%);"></div>
-        <div class="absolute inset-0 z-0 opacity-15 pointer-events-none" style="background-image: radial-gradient(rgba(218, 226, 253, 0.15) 1px, transparent 1px); background-size: 28px 28px;"></div>
-        
-        <div class="relative z-10 max-w-4xl w-full mx-auto text-center flex flex-col items-center gap-8">
-          <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary-container/10 border border-primary-container/20 text-primary-container text-xs font-mono">
-            <span class="w-2 h-2 rounded-full bg-primary-container animate-pulse"></span>
-            ClipAI 2.0 Live • AI Speaker Tracking &amp; Kinetic Captions
-          </div>
-
-          <h1 class="text-4xl sm:text-6xl md:text-7xl font-black tracking-tight text-white leading-tight drop-shadow-md">
-            1 long video,<br/>
-            <span class="text-transparent bg-clip-text bg-gradient-to-r from-primary-container via-primary to-tertiary-fixed">
-              10 viral clips.
-            </span>
-          </h1>
-
-          <p class="text-base sm:text-xl text-on-surface-variant max-w-2xl font-normal leading-relaxed">
-            AI-driven video intelligence that detects high-retention hooks, reframes speakers to 9:16 portrait, animates captions, and automates multi-platform short video publishing.
-          </p>
-
-          <!-- Interactive Input Form -->
-          <div class="w-full max-w-2xl flex flex-col gap-3">
-            <form onsubmit="handleLandingUrlSubmit(event)" class="relative flex items-center bg-surface-container-highest/90 border border-surface-container-high rounded-2xl p-2 shadow-2xl focus-within:ring-2 focus-within:ring-primary-container transition-all">
-              <span class="material-symbols-outlined text-on-surface-variant ml-3 mr-2">link</span>
-              <input id="landing-url-input" type="text" placeholder="Paste YouTube link (e.g. https://youtube.com/watch?v=...)" class="flex-1 bg-transparent border-none outline-none text-on-surface text-sm sm:text-base placeholder-on-surface-variant/40 h-12"/>
-              <button type="submit" class="h-12 px-6 rounded-xl bg-primary-container text-on-primary-container font-bold text-xs sm:text-sm uppercase tracking-wider hover:bg-primary-fixed transition-all hover:scale-[1.02] flex items-center gap-2 shadow-lg shadow-primary-container/25 whitespace-nowrap">
-                <span class="material-symbols-outlined text-lg">auto_awesome</span> Generate Clips
-              </button>
-            </form>
-            <div class="flex flex-wrap items-center justify-between text-xs font-mono text-on-surface-variant px-2">
-              <div class="flex items-center gap-4">
-                <span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-sm text-red-400">play_circle</span> YouTube Shorts</span>
-                <span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-sm text-cyan-400">music_note</span> TikTok</span>
-                <span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-sm text-pink-400">photo_camera</span> Reels</span>
-              </div>
-              <button onclick="triggerFilePicker()" class="hover:text-primary-container underline underline-offset-4 flex items-center gap-1 mt-1 sm:mt-0">
-                <span class="material-symbols-outlined text-sm">upload_file</span> Or upload local MP4/MOV file
-              </button>
-            </div>
-          </div>
-
-          <!-- Feature Strip -->
-          <div class="w-full max-w-4xl grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-8 border-t border-surface-container-highest/60">
-            <div class="flex flex-col items-center gap-2 p-3 rounded-2xl bg-surface-container-low/60 border border-surface-container-highest hover:border-primary-container/40 transition-all">
-              <div class="w-11 h-11 rounded-xl bg-primary-container/10 text-primary-container flex items-center justify-center">
-                <span class="material-symbols-outlined">content_cut</span>
-              </div>
-              <span class="text-xs font-bold text-on-surface">Groq AI Highlights</span>
-            </div>
-            <div class="flex flex-col items-center gap-2 p-3 rounded-2xl bg-surface-container-low/60 border border-surface-container-highest hover:border-primary-container/40 transition-all">
-              <div class="w-11 h-11 rounded-xl bg-primary-container/10 text-primary-container flex items-center justify-center">
-                <span class="material-symbols-outlined">subtitles</span>
-              </div>
-              <span class="text-xs font-bold text-on-surface">Kinetic Typography</span>
-            </div>
-            <div class="flex flex-col items-center gap-2 p-3 rounded-2xl bg-surface-container-low/60 border border-surface-container-highest hover:border-primary-container/40 transition-all">
-              <div class="w-11 h-11 rounded-xl bg-primary-container/10 text-primary-container flex items-center justify-center">
-                <span class="material-symbols-outlined">center_focus_strong</span>
-              </div>
-              <span class="text-xs font-bold text-on-surface">9:16 Smart Reframe</span>
-            </div>
-            <div class="flex flex-col items-center gap-2 p-3 rounded-2xl bg-surface-container-low/60 border border-surface-container-highest hover:border-primary-container/40 transition-all">
-              <div class="w-11 h-11 rounded-xl bg-primary-container/10 text-primary-container flex items-center justify-center">
-                <span class="material-symbols-outlined">hub</span>
-              </div>
-              <span class="text-xs font-bold text-on-surface">1-Click Multi-Publish</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Social Proof Marquee -->
-      <section id="social-proof" class="w-full py-12 bg-surface-container-lowest border-y border-surface-container-high/60 overflow-hidden relative">
-        <p class="text-center text-xs font-mono uppercase tracking-widest text-on-surface-variant mb-6">Automating Video Production For 16,000+ Creators</p>
-        <div class="w-full flex overflow-hidden">
-          <div class="animate-marquee gap-6 items-center px-4">
-            <div class="flex items-center gap-3 bg-surface-container rounded-full px-5 py-2.5 border border-surface-container-highest shadow-md min-w-[240px]">
-              <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-amber-400 to-yellow-600 flex items-center justify-center font-bold text-black text-sm">MB</div>
-              <div>
-                <p class="text-sm font-bold text-white">Marques B.</p>
-                <p class="text-xs text-primary-container font-mono">17M Subscribers</p>
-              </div>
-            </div>
-            <div class="flex items-center gap-3 bg-surface-container rounded-full px-5 py-2.5 border border-surface-container-highest shadow-md min-w-[240px]">
-              <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-pink-500 to-rose-600 flex items-center justify-center font-bold text-white text-sm">EC</div>
-              <div>
-                <p class="text-sm font-bold text-white">Emma C.</p>
-                <p class="text-xs text-primary-container font-mono">12M Followers</p>
-              </div>
-            </div>
-            <div class="flex items-center gap-3 bg-surface-container rounded-full px-5 py-2.5 border border-surface-container-highest shadow-md min-w-[240px]">
-              <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-cyan-400 to-blue-600 flex items-center justify-center font-bold text-black text-sm">NJ</div>
-              <div>
-                <p class="text-sm font-bold text-white">Ninja</p>
-                <p class="text-xs text-primary-container font-mono">24M Followers</p>
-              </div>
-            </div>
-            <div class="flex items-center gap-3 bg-surface-container rounded-full px-5 py-2.5 border border-surface-container-highest shadow-md min-w-[240px]">
-              <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-400 to-teal-600 flex items-center justify-center font-bold text-black text-sm">CT</div>
-              <div>
-                <p class="text-sm font-bold text-white">Chloe T.</p>
-                <p class="text-xs text-primary-container font-mono">25M Followers</p>
-              </div>
-            </div>
-            <div class="flex items-center gap-3 bg-surface-container rounded-full px-5 py-2.5 border border-surface-container-highest shadow-md min-w-[240px]">
-              <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-purple-400 to-indigo-600 flex items-center justify-center font-bold text-white text-sm">AH</div>
-              <div>
-                <p class="text-sm font-bold text-white">Alex H.</p>
-                <p class="text-xs text-primary-container font-mono">4.5M Followers</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Feature Deep-Dive Section -->
-      <section id="features" class="max-w-7xl mx-auto px-4 md:px-8 py-24 space-y-24">
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-          <div class="space-y-4">
-            <div class="w-fit px-3 py-1 bg-primary-container/10 text-primary-container text-xs font-mono rounded-full border border-primary-container/20 flex items-center gap-1.5">
-              <span class="material-symbols-outlined text-sm">center_focus_weak</span> Active AI Speaker Tracking
-            </div>
-            <h2 class="text-3xl sm:text-5xl font-black text-white leading-tight">Never lose the action.</h2>
-            <p class="text-base text-on-surface-variant leading-relaxed">
-              Our neural vision network dynamically reframes landscape 16:9 videos into pixel-perfect 9:16 vertical shorts. It tracks speaker movements, keeps faces centered, and delivers smooth vertical crops.
-            </p>
-            <ul class="space-y-2 pt-2 text-sm text-on-surface">
-              <li class="flex items-center gap-2"><span class="material-symbols-outlined text-primary-container">check_circle</span> Instant aspect ratio conversion (9:16, 1:1, 16:9)</li>
-              <li class="flex items-center gap-2"><span class="material-symbols-outlined text-primary-container">check_circle</span> Zero manual keyframing needed</li>
-              <li class="flex items-center gap-2"><span class="material-symbols-outlined text-primary-container">check_circle</span> Fast FFmpeg hardware accelerated processing</li>
-            </ul>
-            <button onclick="switchView('app'); switchAppTab('editor');" class="mt-4 px-6 py-3 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-white font-bold text-xs uppercase tracking-wider transition-colors border border-surface-container-highest flex items-center gap-2">
-              Try Interactive Editor &rarr;
-            </button>
-          </div>
-          <div class="bg-surface-container rounded-3xl p-6 border border-surface-container-highest shadow-2xl flex items-center justify-center relative overflow-hidden group">
-            <div class="w-full max-w-xs aspect-[9/16] bg-surface-container-lowest rounded-2xl border-2 border-primary-container/40 relative overflow-hidden shadow-2xl flex flex-col justify-between p-4">
-              <div class="flex justify-between items-center text-xs font-mono">
-                <span class="bg-primary-container/20 text-primary-container px-2 py-0.5 rounded border border-primary-container/30">AI Face Lock: 99.8%</span>
-                <span class="text-tertiary-fixed">9:16 Crop</span>
-              </div>
-              <div class="w-32 h-32 mx-auto rounded-full border-2 border-dashed border-primary-container/70 flex items-center justify-center animate-pulse">
-                <span class="material-symbols-outlined text-5xl text-primary-container">face</span>
-              </div>
-              <div class="bg-black/70 backdrop-blur-md p-3 rounded-xl border border-white/10 text-center">
-                <p class="text-xs font-bold text-primary-container">"THIS 1 TRICK SCALED MY CLIPS 10X!" 🔥</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div id="demos" class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-          <div class="order-2 lg:order-1 bg-surface-container rounded-3xl p-8 border border-surface-container-highest shadow-2xl flex flex-col items-center justify-center text-center relative">
-            <div class="w-full py-16 px-4 bg-surface-container-lowest rounded-2xl border border-surface-container-highest flex flex-col items-center justify-center gap-4">
-              <span class="text-3xl sm:text-5xl font-black italic tracking-tight text-white">
-                THIS IS <span class="text-primary-container drop-shadow-[0_0_15px_rgba(250,204,21,0.6)]">VIRAL</span> 🔥
-              </span>
-              <div class="flex gap-2">
-                <span class="px-3 py-1 bg-primary-container/10 border border-primary-container/30 rounded-full text-xs text-primary-container font-mono">Hormozi Kinetic</span>
-                <span class="px-3 py-1 bg-cyan-400/10 border border-cyan-400/30 rounded-full text-xs text-cyan-300 font-mono">Auto Emojis</span>
-              </div>
-            </div>
-          </div>
-          <div class="order-1 lg:order-2 space-y-4">
-            <div class="w-fit px-3 py-1 bg-cyan-400/10 text-cyan-300 text-xs font-mono rounded-full border border-cyan-400/20 flex items-center gap-1.5">
-              <span class="material-symbols-outlined text-sm">text_fields</span> Kinetic Auto-Captions
-            </div>
-            <h2 class="text-3xl sm:text-5xl font-black text-white leading-tight">Captions that pop &amp; convert.</h2>
-            <p class="text-base text-on-surface-variant leading-relaxed">
-              Whisper transcription and Groq AI analysis generate synchronized kinetic captions with customizable creator typography, highlight colors, and bold styling.
-            </p>
-            <button onclick="switchView('app'); switchAppTab('dashboard');" class="mt-4 px-6 py-3 rounded-xl bg-primary-container text-on-primary-container font-bold text-xs uppercase tracking-wider hover:bg-primary-fixed transition-all">
-              Launch Studio Now
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <!-- CTA Footer -->
-      <footer class="w-full py-20 bg-surface-container-lowest border-t border-surface-container-high text-center px-4">
-        <div class="max-w-3xl mx-auto space-y-6">
-          <h2 class="text-3xl sm:text-4xl font-extrabold text-white">Stop editing for hours. Start clipping today.</h2>
-          <p class="text-sm text-on-surface-variant">Automated viral clip extraction, kinetic subtitle rendering, and multi-channel publishing.</p>
-          <button onclick="switchView('app')" class="px-8 py-4 rounded-full bg-primary-container text-on-primary-container font-bold text-sm uppercase tracking-wider hover:bg-primary-fixed transition-all hover:scale-105 shadow-xl shadow-primary-container/20">
-            Open Studio Workspace
-          </button>
-        </div>
-      </footer>
-    </div>
-
-    <!-- ========================================== -->
-    <!-- VIEW 2: APP SHELL (DASHBOARD, STUDIO, PROJECTS) -->
-    <!-- ========================================== -->
-    <div id="view-app-shell" class="view-panel hidden flex-col flex-1">
-      
-      <!-- App Header -->
-      <header class="fixed top-0 left-0 right-0 h-16 bg-surface/90 backdrop-blur-xl z-40 border-b border-surface-container-high flex items-center justify-between px-4 lg:px-8">
-        <div class="flex items-center gap-4">
-          <button onclick="toggleMobileSidebar()" class="lg:hidden text-on-surface-variant hover:text-white">
-            <span class="material-symbols-outlined">menu</span>
-          </button>
-          <a href="#" onclick="switchView('landing')" class="flex items-center gap-2.5">
-            <div class="w-8 h-8 rounded-xl bg-primary-container text-on-primary-container flex items-center justify-center font-bold">
-              <span class="material-symbols-outlined text-lg filled-icon">movie_filter</span>
-            </div>
-            <span class="text-lg font-bold tracking-tight text-white">Clip<span class="text-primary-container">AI</span></span>
-          </a>
-          <span class="hidden sm:inline text-xs font-mono text-on-surface-variant/40">/</span>
-          <span id="header-breadcrumbs" class="hidden sm:inline text-xs font-mono uppercase text-primary-container font-semibold">Dashboard</span>
-        </div>
-
-        <div class="flex items-center gap-4">
-          <!-- Quick Generate Button -->
-          <button onclick="switchAppTab('dashboard')" class="hidden md:flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-primary-container/10 border border-primary-container/30 text-primary-container text-xs font-bold hover:bg-primary-container/20 transition-all">
-            <span class="material-symbols-outlined text-sm">bolt</span> New Video Analysis
-          </button>
-
-          <!-- Notifications Dropdown -->
-          <div class="relative">
-            <button onclick="toggleNotificationDropdown()" class="w-9 h-9 rounded-xl bg-surface-container flex items-center justify-center text-on-surface-variant hover:text-white transition-colors relative border border-surface-container-highest">
-              <span class="material-symbols-outlined text-lg">notifications</span>
-              <span id="notif-badge" class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary-container rounded-full animate-ping"></span>
-              <span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary-container rounded-full"></span>
-            </button>
-            <div id="notif-dropdown" class="hidden absolute right-0 mt-2 w-80 bg-surface-container-low border border-surface-container-highest rounded-2xl shadow-2xl p-4 z-50">
-              <div class="flex justify-between items-center mb-3">
-                <span class="text-xs font-bold uppercase tracking-wider text-on-surface">Notifications</span>
-                <button onclick="clearNotifications()" class="text-[10px] text-primary-container hover:underline">Clear</button>
-              </div>
-              <div class="space-y-2 text-xs" id="notif-list">
-                <div class="p-2.5 rounded-xl bg-surface-container border border-surface-container-highest">
-                  <p class="font-bold text-white">AI Analysis Engine Ready</p>
-                  <p class="text-[10px] text-on-surface-variant">Groq Llama-3 + Whisper V3 active &amp; connected.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- YouTube Auth Profile -->
-          <div class="flex items-center gap-3 pl-3 border-l border-surface-container-highest" id="auth-section">
-            <button onclick="connectYouTubeAuth()" class="px-3.5 py-1.5 rounded-xl bg-red-600/20 text-red-300 hover:bg-red-600/30 border border-red-500/40 text-xs font-bold flex items-center gap-1.5 transition-all">
-              <span class="material-symbols-outlined text-sm filled-icon">play_circle</span> Connect YouTube
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <!-- App Body with Sidebar -->
-      <div class="pt-16 flex flex-1 min-h-[calc(100vh-64px)]">
-        
-        <!-- Sidebar Navigation -->
-        <aside id="app-sidebar" class="w-64 bg-surface-container-low border-r border-surface-container-high flex flex-col justify-between p-4 fixed lg:sticky top-16 h-[calc(100vh-64px)] z-30 transform -translate-x-full lg:translate-x-0 transition-transform duration-300">
-          <nav class="space-y-1.5 text-xs font-medium">
-            <button onclick="switchAppTab('dashboard')" id="nav-dashboard" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-primary-container text-on-primary-container font-bold shadow-md shadow-primary-container/20 transition-all text-left">
-              <span class="material-symbols-outlined text-lg">dashboard</span>
-              <span>Dashboard</span>
-            </button>
-            <button onclick="switchAppTab('editor')" id="nav-editor" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-on-surface-variant hover:bg-surface-container-high hover:text-white transition-all text-left">
-              <span class="material-symbols-outlined text-lg">movie_edit</span>
-              <span>Clip Studio Editor</span>
-            </button>
-            <button onclick="switchAppTab('projects')" id="nav-projects" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-on-surface-variant hover:bg-surface-container-high hover:text-white transition-all text-left">
-              <span class="material-symbols-outlined text-lg">video_library</span>
-              <span>Projects &amp; Library</span>
-            </button>
-            <button onclick="showToast('Caption engine: 3 viral kinetic presets loaded', 'info')" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-on-surface-variant hover:bg-surface-container-high hover:text-white transition-all text-left">
-              <span class="material-symbols-outlined text-lg">auto_awesome_motion</span>
-              <span>Caption Presets</span>
-            </button>
-            <button onclick="toggleModal('platform-modal', true)" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-on-surface-variant hover:bg-surface-container-high hover:text-white transition-all text-left">
-              <span class="material-symbols-outlined text-lg">hub</span>
-              <span>Connected Accounts</span>
-            </button>
-          </nav>
-
-          <!-- Sidebar Footer: Engine Status -->
-          <div class="p-4 rounded-2xl bg-surface-container border border-surface-container-highest space-y-2">
-            <div class="flex justify-between items-center text-[10px] font-mono text-on-surface-variant uppercase">
-              <span>AI Engine Status</span>
-              <span class="text-primary-container font-bold">ACTIVE</span>
-            </div>
-            <div class="w-full h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
-              <div class="bg-primary-container h-full w-full shadow-[0_0_8px_#facc15]"></div>
-            </div>
-            <p class="text-[10px] text-on-surface-variant/80">Whisper V3 &bull; Groq LLaMA 3 &bull; FFmpeg</p>
-          </div>
-        </aside>
-
-        <!-- Main Content Area -->
-        <main class="flex-1 bg-background overflow-y-auto p-4 lg:p-8">
-          
-          <!-- ========================================== -->
-          <!-- SUB-VIEW: DASHBOARD -->
-          <!-- ========================================== -->
-          <div id="tab-dashboard" class="tab-content block space-y-8">
-            
-            <!-- Dashboard Hero Auto-Clip Box -->
-            <div class="relative rounded-3xl overflow-hidden p-6 sm:p-10 border border-surface-container-highest shadow-2xl bg-gradient-to-b from-surface-container-high/60 to-surface-container-low">
-              <div class="relative z-10 max-w-3xl space-y-4">
-                <div class="w-12 h-12 rounded-2xl bg-primary-container text-on-primary-container flex items-center justify-center font-bold shadow-lg shadow-primary-container/20">
-                  <span class="material-symbols-outlined text-2xl filled-icon">smart_toy</span>
-                </div>
-                <h1 class="text-2xl sm:text-4xl font-extrabold text-white">Generate viral clips in seconds.</h1>
-                <p class="text-sm text-on-surface-variant">Paste any YouTube URL or drop your local video file. ClipAI scores high-engagement segments, frames vertical 9:16 crops, and formats animated captions.</p>
-                
-                <!-- URL Form -->
-                <div class="space-y-3 pt-2">
-                  <form onsubmit="handleDashboardUrlSubmit(event)" class="flex flex-col sm:flex-row gap-3">
-                    <div class="flex-1 relative flex items-center">
-                      <span class="material-symbols-outlined absolute left-3.5 text-on-surface-variant text-sm">link</span>
-                      <input id="dash-url-input" type="text" placeholder="Paste YouTube link (e.g. https://www.youtube.com/watch?v=...)" class="w-full bg-surface-container-lowest text-on-surface text-sm rounded-xl py-3 pl-10 pr-4 border border-surface-container-highest outline-none focus:border-primary-container transition-all"/>
-                    </div>
-                    <div class="flex items-center gap-2">
-                      <select id="dash-num-clips" class="bg-surface-container-lowest text-on-surface text-xs font-mono rounded-xl py-3 px-3 border border-surface-container-highest outline-none">
-                        <option value="3">3 Clips</option>
-                        <option value="5" selected>5 Clips</option>
-                        <option value="7">7 Clips</option>
-                        <option value="10">10 Clips</option>
-                      </select>
-                      <button type="submit" id="dash-analyze-btn" class="bg-primary-container text-on-primary-container font-bold text-xs uppercase tracking-wider px-6 py-3 rounded-xl hover:bg-primary-fixed transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary-container/20 whitespace-nowrap">
-                        <span class="material-symbols-outlined text-base">auto_awesome</span> Auto-Clip
-                      </button>
-                    </div>
-                  </form>
-
-                  <!-- Custom Caption / Hashtag Suffix & Local Drop Zone -->
-                  <div class="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs pt-1">
-                    <div class="flex-1 w-full flex items-center gap-2">
-                      <span class="text-on-surface-variant font-mono text-[11px] whitespace-nowrap">Optional Caption Suffix:</span>
-                      <input id="dash-caption-suffix" type="text" placeholder="e.g. Subscribe for part 2! #viral #fyp" class="w-full bg-surface-container-lowest text-xs text-on-surface rounded-lg py-1.5 px-3 border border-surface-container-highest outline-none focus:border-primary-container"/>
-                    </div>
-                    <button onclick="triggerFilePicker()" class="w-full sm:w-auto bg-surface-container text-white border border-surface-container-highest font-bold text-xs uppercase tracking-wider px-4 py-2 rounded-xl hover:bg-surface-container-high transition-all flex items-center justify-center gap-2 whitespace-nowrap">
-                      <span class="material-symbols-outlined text-base">upload_file</span> Or Upload Local Video
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Recent Clips & Publish Hub Row -->
-            <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
-              
-              <!-- Recent Clips (2 Columns) -->
-              <div class="xl:col-span-2 space-y-4">
-                <div class="flex justify-between items-center">
-                  <h2 class="text-lg font-bold text-white flex items-center gap-2">
-                    <span class="material-symbols-outlined text-primary-container">video_library</span> Recent Generated Clips
-                  </h2>
-                  <button onclick="switchAppTab('projects')" class="text-xs font-mono text-primary-container hover:underline flex items-center gap-1">
-                    View All in Library &rarr;
-                  </button>
-                </div>
-
-                <div id="dashboard-recent-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <!-- Dynamically populated from database or loaded clips -->
-                </div>
-              </div>
-
-              <!-- Publish Hub (1 Column) -->
-              <div class="space-y-4">
-                <div class="flex justify-between items-center">
-                  <h2 class="text-lg font-bold text-white flex items-center gap-2">
-                    <span class="material-symbols-outlined text-tertiary-fixed">hub</span> Publish Hub
-                  </h2>
-                  <button onclick="toggleModal('platform-modal', true)" class="text-xs font-mono text-primary-container hover:underline">
-                    + Manage
-                  </button>
-                </div>
-
-                <div class="bg-surface-container rounded-2xl p-5 border border-surface-container-highest space-y-4">
-                  <!-- YouTube Shorts -->
-                  <div class="p-3.5 rounded-xl bg-surface-container-low border border-surface-container-highest flex items-center justify-between" id="hub-yt-card">
-                    <div class="flex items-center gap-3">
-                      <div class="w-9 h-9 rounded-lg bg-[#FF0000] text-white flex items-center justify-center">
-                        <span class="material-symbols-outlined text-sm filled-icon">play_circle</span>
-                      </div>
-                      <div>
-                        <p class="text-xs font-bold text-white">YouTube Shorts</p>
-                        <p class="text-[10px] text-on-surface-variant flex items-center gap-1" id="hub-yt-status">
-                          <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> Disconnected
-                        </p>
-                      </div>
-                    </div>
-                    <button onclick="connectYouTubeAuth()" id="hub-yt-btn" class="text-[10px] font-mono font-bold px-2.5 py-1 bg-primary-container/15 text-primary-container rounded-lg hover:bg-primary-container/30 uppercase transition-colors">
-                      Connect
-                    </button>
-                  </div>
-
-                  <!-- TikTok -->
-                  <div class="p-3.5 rounded-xl bg-surface-container-low border border-surface-container-highest flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                      <div class="w-9 h-9 rounded-lg bg-black text-white flex items-center justify-center font-bold">
-                        <span class="material-symbols-outlined text-sm">music_note</span>
-                      </div>
-                      <div>
-                        <p class="text-xs font-bold text-white">TikTok</p>
-                        <p class="text-[10px] text-tertiary-fixed flex items-center gap-1">
-                          <span class="w-1.5 h-1.5 rounded-full bg-tertiary-fixed animate-pulse"></span> Ready
-                        </p>
-                      </div>
-                    </div>
-                    <button onclick="showToast('TikTok multi-publisher is active.', 'info')" class="w-7 h-7 rounded-lg bg-surface-container-highest hover:text-primary-container flex items-center justify-center">
-                      <span class="material-symbols-outlined text-sm">settings</span>
-                    </button>
-                  </div>
-
-                  <!-- Instagram Reels -->
-                  <div class="p-3.5 rounded-xl bg-surface-container-low border border-surface-container-highest flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                      <div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-[#f09433] via-[#e6683c] to-[#bc1888] text-white flex items-center justify-center">
-                        <span class="material-symbols-outlined text-sm">photo_camera</span>
-                      </div>
-                      <div>
-                        <p class="text-xs font-bold text-white">Instagram Reels</p>
-                        <p class="text-[10px] text-tertiary-fixed flex items-center gap-1">
-                          <span class="w-1.5 h-1.5 rounded-full bg-tertiary-fixed animate-pulse"></span> Ready
-                        </p>
-                      </div>
-                    </div>
-                    <button onclick="showToast('Instagram Reels publisher is active.', 'info')" class="w-7 h-7 rounded-lg bg-surface-container-highest hover:text-primary-container flex items-center justify-center">
-                      <span class="material-symbols-outlined text-sm">settings</span>
-                    </button>
-                  </div>
-
-                  <button onclick="toggleModal('platform-modal', true)" class="w-full py-2.5 rounded-xl bg-surface-container-highest hover:bg-surface-container-high text-on-surface text-xs font-mono uppercase tracking-wider flex items-center justify-center gap-2 border border-surface-container-highest transition-all">
-                    <span class="material-symbols-outlined text-sm">add</span> Add More Channels
-                  </button>
-                </div>
-              </div>
-
-            </div>
-          </div>
-
-          <!-- ========================================== -->
-          <!-- SUB-VIEW: CLIP STUDIO (VIDEO EDITOR) -->
-          <!-- ========================================== -->
-          <div id="tab-editor" class="tab-content hidden h-[calc(100vh-120px)] flex-col">
-            
-            <!-- Editor Top Action Bar -->
-            <div class="h-12 bg-surface-container-low border border-surface-container-highest rounded-t-2xl px-4 flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <button onclick="showToast('Studio changes stored in state', 'info')" class="text-on-surface-variant hover:text-white">
-                  <span class="material-symbols-outlined text-base">undo</span>
-                </button>
-                <div class="w-px h-4 bg-surface-container-highest"></div>
-                <span id="editor-active-ratio-badge" class="text-[11px] font-mono bg-surface-container px-2.5 py-1 rounded text-primary-container border border-surface-container-highest">
-                  9:16 Portrait (1080x1920)
-                </span>
-                <span id="editor-project-title" class="text-xs font-bold text-white hidden md:inline truncate max-w-xs">
-                  Clip Studio Editor
-                </span>
-              </div>
-              <div class="flex items-center gap-2">
-                <button onclick="downloadCurrentClip()" class="px-3.5 py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-xs font-mono text-white flex items-center gap-1.5 border border-surface-container-highest transition-all">
-                  <span class="material-symbols-outlined text-sm">download</span> Download MP4
-                </button>
-                <button onclick="uploadCurrentClipToYouTube()" class="px-4 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition-all">
-                  <span class="material-symbols-outlined text-sm filled-icon">upload</span> Post to YouTube
-                </button>
-              </div>
-            </div>
-
-            <!-- Editor 3-Column Workspace -->
-            <div class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-0 border-x border-b border-surface-container-highest rounded-b-2xl overflow-hidden bg-surface-container-lowest">
-              
-              <!-- Left Column: AI Segments List (3 Cols) -->
-              <div class="lg:col-span-3 bg-surface-container-low border-r border-surface-container-highest p-4 overflow-y-auto space-y-3">
-                <div class="flex justify-between items-center pb-2 border-b border-surface-container-highest">
-                  <div>
-                    <h3 class="text-xs font-bold uppercase tracking-wider text-white">AI Segments</h3>
-                    <p class="text-[10px] text-on-surface-variant" id="editor-segment-count">Select a viral clip</p>
-                  </div>
-                  <span class="px-2 py-0.5 rounded bg-primary-container/15 text-primary-container font-mono text-[10px]">AI Ranked</span>
-                </div>
-
-                <div id="editor-segments-list" class="space-y-2.5">
-                  <!-- Dynamically populated from analyzed clips -->
-                  <div class="p-4 rounded-xl bg-surface-container border border-surface-container-highest text-center text-xs text-on-surface-variant">
-                    No active clips loaded.<br/>
-                    <button onclick="switchAppTab('dashboard')" class="mt-2 text-primary-container font-bold hover:underline">
-                      Analyze a video &rarr;
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Center Column: Video Player & Interactive Timeline (6 Cols) -->
-              <div class="lg:col-span-6 flex flex-col justify-between bg-surface-dim p-4 overflow-hidden">
-                
-                <!-- Video Stage -->
-                <div class="flex-1 flex items-center justify-center relative min-h-[300px]">
-                  
-                  <!-- Dynamic Aspect Ratio Container -->
-                  <div id="video-player-container" class="relative aspect-[9/16] h-[340px] sm:h-[400px] bg-black rounded-2xl border-2 border-surface-container-highest overflow-hidden shadow-2xl transition-all duration-300 flex flex-col justify-between p-4">
-                    
-                    <!-- Top Overlay Info -->
-                    <div class="flex justify-between items-center z-10">
-                      <span class="px-2 py-0.5 rounded bg-black/60 backdrop-blur-md text-[10px] font-mono text-primary-container border border-primary-container/30" id="player-status-tag">
-                        &bull; AI Speaker Centered
-                      </span>
-                      <span id="player-time-badge" class="px-2 py-0.5 rounded bg-black/60 backdrop-blur-md text-[10px] font-mono text-white">
-                        00:00 / 00:30
-                      </span>
-                    </div>
-
-                    <!-- Video / Visualizer Element -->
-                    <div class="absolute inset-0 flex items-center justify-center overflow-hidden" id="player-media-wrap">
-                      <video id="studio-html5-video" class="w-full h-full object-cover hidden" playsinline></video>
-                      
-                      <!-- Default Speaker Simulation Graphic -->
-                      <div id="speaker-visualizer" class="flex flex-col items-center justify-center my-auto relative">
-                        <div id="speaker-avatar" class="w-24 h-24 rounded-full bg-gradient-to-tr from-amber-400/30 to-yellow-600/40 border-2 border-primary-container flex items-center justify-center shadow-lg transition-transform duration-200">
-                          <span class="material-symbols-outlined text-5xl text-primary-container">person</span>
-                        </div>
-                        <div class="absolute -top-3 w-32 h-32 border border-dashed border-primary-container/60 rounded-xl pointer-events-none animate-pulse"></div>
-                      </div>
-                    </div>
-
-                    <!-- Live Dynamic Caption Overlay -->
-                    <div id="caption-overlay" class="z-20 text-center px-2 py-2 rounded-xl transition-all duration-300 mt-auto mb-2">
-                      <p id="caption-text" class="text-base sm:text-lg font-black tracking-tight uppercase text-primary-container drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]" style="text-shadow: 0 0 12px rgba(250,204,21,0.6);">
-                        AI HIGHLIGHT CLIP
-                      </p>
-                    </div>
-
-                    <!-- Playback Controls Overlay -->
-                    <div class="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors group cursor-pointer z-30" onclick="togglePlayPause()">
-                      <button id="player-play-btn" class="w-14 h-14 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform">
-                        <span id="player-play-icon" class="material-symbols-outlined text-3xl filled-icon">play_arrow</span>
-                      </button>
-                    </div>
-
-                  </div>
-                </div>
-
-                <!-- Timeline Scrubber Area -->
-                <div class="bg-surface-container-low rounded-xl border border-surface-container-highest p-3 mt-3 space-y-2">
-                  <div class="flex justify-between items-center text-xs font-mono">
-                    <div class="flex items-center gap-3">
-                      <button onclick="togglePlayPause()" class="text-primary-container hover:text-white">
-                        <span id="timeline-play-icon" class="material-symbols-outlined text-lg">play_arrow</span>
-                      </button>
-                      <span id="timeline-current-time" class="text-white font-bold">00:00:00</span>
-                      <span class="text-on-surface-variant" id="timeline-total-time">/ 00:00:30</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                      <span class="text-[10px] text-on-surface-variant font-mono" id="timeline-segment-label">Segment: 00:00 - 00:30</span>
-                    </div>
-                  </div>
-
-                  <!-- Timeline Tracks -->
-                  <div class="relative w-full h-12 bg-surface-container-highest rounded-lg overflow-hidden flex flex-col justify-between p-1.5 cursor-pointer" onclick="scrubTimeline(event)">
-                    <!-- Progress Bar Track -->
-                    <div id="timeline-progress-bar" class="absolute top-0 bottom-0 left-0 w-[0%] bg-primary-container/20 border-r-2 border-primary-container pointer-events-none transition-all duration-100"></div>
-                    
-                    <!-- Video Track -->
-                    <div class="h-4 bg-surface-container rounded flex items-center px-2 text-[9px] font-mono text-on-surface-variant">
-                      🎬 Video: AI Face Track (9:16 Vertical)
-                    </div>
-                    
-                    <!-- Audio Waveform Track -->
-                    <div class="h-4 bg-tertiary-fixed/15 rounded flex items-center px-2 text-[9px] font-mono text-tertiary-fixed">
-                      🔊 Audio: Word Timestamps &amp; Subtitles
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-
-              <!-- Right Column: Properties & Style Panel (3 Cols) -->
-              <div class="lg:col-span-3 bg-surface-container-low border-l border-surface-container-highest p-4 overflow-y-auto space-y-5">
-                
-                <!-- Aspect Ratio Selector -->
-                <div class="space-y-2">
-                  <label class="text-[11px] font-mono uppercase tracking-wider text-on-surface-variant">Aspect Ratio Reframe</label>
-                  <div class="grid grid-cols-3 gap-2">
-                    <button id="ratio-btn-9-16" onclick="setAspectRatio('9:16')" class="ratio-btn p-2.5 rounded-xl border-2 border-primary-container bg-primary-container/10 flex flex-col items-center gap-1 text-primary-container text-xs font-bold transition-all">
-                      <div class="w-3.5 h-6 border-2 border-current rounded-sm"></div>
-                      <span>9:16</span>
-                    </button>
-                    <button id="ratio-btn-1-1" onclick="setAspectRatio('1:1')" class="ratio-btn p-2.5 rounded-xl border border-surface-container-highest bg-surface-container flex flex-col items-center gap-1 text-on-surface-variant hover:text-white text-xs font-bold transition-all">
-                      <div class="w-5 h-5 border-2 border-current rounded-sm"></div>
-                      <span>1:1</span>
-                    </button>
-                    <button id="ratio-btn-16-9" onclick="setAspectRatio('16:9')" class="ratio-btn p-2.5 rounded-xl border border-surface-container-highest bg-surface-container flex flex-col items-center gap-1 text-on-surface-variant hover:text-white text-xs font-bold transition-all">
-                      <div class="w-6 h-3.5 border-2 border-current rounded-sm"></div>
-                      <span>16:9</span>
-                    </button>
-                  </div>
-                </div>
-
-                <!-- Caption Presets -->
-                <div class="space-y-2">
-                  <label class="text-[11px] font-mono uppercase tracking-wider text-on-surface-variant">Kinetic Caption Preset</label>
-                  <div class="space-y-2">
-                    <!-- Preset 1 -->
-                    <div id="caption-preset-1" onclick="setCaptionStyle('tiktok_pop')" class="caption-preset-card p-2.5 rounded-xl border-2 border-primary-container bg-surface-container cursor-pointer transition-all flex items-center gap-3">
-                      <div class="w-9 h-9 rounded-lg bg-black flex items-center justify-center font-black text-primary-container text-xs border border-primary-container/40">
-                        Aa
-                      </div>
-                      <div>
-                        <p class="text-xs font-bold text-white">Hormozi Bold</p>
-                        <p class="text-[10px] text-on-surface-variant font-mono">Electric yellow, uppercase glow</p>
-                      </div>
-                    </div>
-
-                    <!-- Preset 2 -->
-                    <div id="caption-preset-2" onclick="setCaptionStyle('minimal')" class="caption-preset-card p-2.5 rounded-xl border border-surface-container-highest hover:border-primary-container/50 bg-surface-container cursor-pointer transition-all flex items-center gap-3">
-                      <div class="w-9 h-9 rounded-lg bg-surface-container-highest flex items-center justify-center font-bold text-white text-xs">
-                        Aa
-                      </div>
-                      <div>
-                        <p class="text-xs font-bold text-white">Minimalist Box</p>
-                        <p class="text-[10px] text-on-surface-variant font-mono">White text with dark backing</p>
-                      </div>
-                    </div>
-
-                    <!-- Preset 3 -->
-                    <div id="caption-preset-3" onclick="setCaptionStyle('bounce')" class="caption-preset-card p-2.5 rounded-xl border border-surface-container-highest hover:border-primary-container/50 bg-surface-container cursor-pointer transition-all flex items-center gap-3">
-                      <div class="w-9 h-9 rounded-lg bg-cyan-950 flex items-center justify-center font-black italic text-cyan-300 text-xs border border-cyan-400/40">
-                        Aa
-                      </div>
-                      <div>
-                        <p class="text-xs font-bold text-white">Kinetic Cyber</p>
-                        <p class="text-[10px] text-on-surface-variant font-mono">Cyan italics, animated pop</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Editable Metadata -->
-                <div class="space-y-3 pt-2 border-t border-surface-container-highest">
-                  <div>
-                    <label class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant block mb-1">
-                      Clip Title
-                    </label>
-                    <input id="edit-clip-title" type="text" oninput="updateActiveClipTitle(this.value)" class="w-full bg-surface-container-lowest text-xs text-white p-2 rounded-lg border border-surface-container-highest outline-none focus:border-primary-container"/>
-                  </div>
-
-                  <div>
-                    <label class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant block mb-1">
-                      Caption / Description
-                    </label>
-                    <textarea id="edit-clip-desc" rows="3" oninput="updateActiveClipDesc(this.value)" class="w-full bg-surface-container-lowest text-xs text-on-surface p-2 rounded-lg border border-surface-container-highest outline-none focus:border-primary-container leading-relaxed"></textarea>
-                  </div>
-
-                  <div>
-                    <label class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant block mb-1">
-                      Upload Privacy
-                    </label>
-                    <select id="edit-clip-privacy" onchange="updateActiveClipPrivacy(this.value)" class="w-full bg-surface-container-lowest text-xs text-on-surface p-2 rounded-lg border border-surface-container-highest outline-none focus:border-primary-container">
-                      <option value="public">🌐 Public</option>
-                      <option value="unlisted">🔗 Unlisted</option>
-                      <option value="private">🔒 Private</option>
-                    </select>
-                  </div>
-
-                  <!-- Font Size Slider -->
-                  <div class="flex justify-between items-center pt-1">
-                    <span class="text-xs font-bold text-white">Caption Font Size</span>
-                    <span id="font-size-label" class="text-xs font-mono text-primary-container">22px</span>
-                  </div>
-                  <input type="range" min="14" max="32" value="22" oninput="adjustFontSize(this.value)" class="w-full accent-primary-container cursor-pointer"/>
-                </div>
-
-              </div>
-
-            </div>
-
-          </div>
-
-          <!-- ========================================== -->
-          <!-- SUB-VIEW: PROJECTS & LIBRARY -->
-          <!-- ========================================== -->
-          <div id="tab-projects" class="tab-content hidden space-y-6">
-            
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div>
-                <h1 class="text-2xl font-extrabold text-white">Projects &amp; Video Library</h1>
-                <p class="text-xs text-on-surface-variant font-mono">Manage analyzed clips, downloads, and historical video processing jobs.</p>
-              </div>
-              <button onclick="triggerFilePicker()" class="px-4 py-2.5 rounded-xl bg-primary-container text-on-primary-container font-bold text-xs uppercase tracking-wider hover:bg-primary-fixed flex items-center gap-2 shadow-md shadow-primary-container/20">
-                <span class="material-symbols-outlined text-sm">cloud_upload</span> Upload Video
-              </button>
-            </div>
-
-            <!-- KPI Metric Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div class="bg-surface-container rounded-2xl p-5 border border-surface-container-highest space-y-2">
-                <div class="flex justify-between items-center text-xs font-mono text-on-surface-variant">
-                  <span>TOTAL CLIPS GENERATED</span>
-                  <span class="material-symbols-outlined text-primary-container">content_cut</span>
-                </div>
-                <div class="flex items-baseline gap-2">
-                  <span class="text-3xl font-black text-white" id="stats-total-clips">0</span>
-                  <span class="text-xs font-bold text-primary-container">High-Retention AI Highlights</span>
-                </div>
-                <div class="w-full h-10 pt-2">
-                  <svg class="w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 25">
-                    <path d="M0 20 Q 25 5, 50 15 T 100 4" fill="none" stroke="#facc15" stroke-width="2.5"></path>
-                  </svg>
-                </div>
-              </div>
-
-              <div class="bg-surface-container rounded-2xl p-5 border border-surface-container-highest space-y-2">
-                <div class="flex justify-between items-center text-xs font-mono text-on-surface-variant">
-                  <span>COMPLETED PROCESSING JOBS</span>
-                  <span class="material-symbols-outlined text-tertiary-fixed">task_alt</span>
-                </div>
-                <div class="flex items-baseline gap-2">
-                  <span class="text-3xl font-black text-white" id="stats-completed-clips">0</span>
-                  <span class="text-xs font-bold text-tertiary-fixed">Exported &amp; Ready</span>
-                </div>
-                <div class="w-full h-10 flex items-end gap-1.5 pt-2">
-                  <div class="flex-1 bg-surface-container-highest h-3 rounded-t"></div>
-                  <div class="flex-1 bg-surface-container-highest h-5 rounded-t"></div>
-                  <div class="flex-1 bg-surface-container-highest h-4 rounded-t"></div>
-                  <div class="flex-1 bg-tertiary-container h-8 rounded-t shadow-[0_0_8px_#33e4ff]"></div>
-                  <div class="flex-1 bg-surface-container-highest h-6 rounded-t"></div>
-                  <div class="flex-1 bg-surface-container-highest h-7 rounded-t"></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Search & Filter Controls -->
-            <div class="bg-surface-container rounded-2xl p-4 border border-surface-container-highest flex flex-col md:flex-row items-center justify-between gap-4">
-              <div class="relative w-full md:w-80">
-                <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">search</span>
-                <input id="project-search-input" oninput="filterProjectTable()" type="text" placeholder="Search by clip title, reasoning, tag..." class="w-full bg-surface-container-lowest text-xs text-on-surface rounded-xl pl-9 pr-4 py-2.5 border border-surface-container-highest outline-none focus:border-primary-container"/>
-              </div>
-              <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
-                <button onclick="setProjectCategory('all', this)" class="category-filter-btn px-3 py-1.5 rounded-lg bg-primary-container text-black font-bold text-xs">All</button>
-                <button onclick="setProjectCategory('analyzed', this)" class="category-filter-btn px-3 py-1.5 rounded-lg bg-surface-container-low hover:bg-surface-container-highest text-on-surface-variant text-xs">Analyzed</button>
-                <button onclick="setProjectCategory('completed', this)" class="category-filter-btn px-3 py-1.5 rounded-lg bg-surface-container-low hover:bg-surface-container-highest text-on-surface-variant text-xs">Completed</button>
-              </div>
-            </div>
-
-            <!-- Projects Table -->
-            <div class="bg-surface-container rounded-2xl border border-surface-container-highest overflow-hidden shadow-lg">
-              <div class="overflow-x-auto">
-                <table class="w-full text-left text-xs">
-                  <thead class="bg-surface-container-low font-mono uppercase text-on-surface-variant border-b border-surface-container-highest">
-                    <tr>
-                      <th class="p-4 font-semibold">Clip / Video</th>
-                      <th class="p-4 font-semibold">Status</th>
-                      <th class="p-4 font-semibold">Timestamps</th>
-                      <th class="p-4 font-semibold">Privacy</th>
-                      <th class="p-4 font-semibold text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody id="projects-table-body" class="divide-y divide-surface-container-highest font-medium text-on-surface">
-                    <!-- Populated dynamically via /api/projects -->
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-          </div>
-
-        </main>
-      </div>
-
-    </div>
-
-  </div>
-
-  <!-- APPLICATION JAVASCRIPT STATE ENGINE -->
-  <script>
-    // Global App State
-    const AppState = {
-      currentView: 'landing',
-      currentTab: 'dashboard',
-      isPlaying: false,
-      playbackTimer: null,
-      currentSeconds: 0,
-      durationSeconds: 30,
-      aspectRatio: '9:16',
-      captionStyle: 'tiktok_pop',
-      fontSize: 22,
-      activeClip: null,
-      currentClips: [],
-      currentMetadata: null,
-      currentUser: null,
-      tokenClient: null
-    };
-
-    const CLIENT_ID = "{{ google_client_id }}" || "212371733540-tljm3prqhq4b3fucr40ao8c88jfa7los.apps.googleusercontent.com";
-    const AUTH_STORAGE_KEY = 'clipflow_auth_session';
-
-    // Initialize on page load
-    document.addEventListener('DOMContentLoaded', () => {
-      restoreSavedAuthSession();
-      loadDatabaseProjects();
-    });
-
-    // View Switcher
-    function switchView(viewName) {
-      AppState.currentView = viewName;
-      const landing = document.getElementById('view-landing');
-      const appShell = document.getElementById('view-app-shell');
-
-      if (viewName === 'landing') {
-        landing.classList.remove('hidden');
-        landing.style.display = '';
-        appShell.classList.add('hidden');
-        appShell.style.display = 'none';
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      } else {
-        landing.classList.add('hidden');
-        landing.style.display = 'none';
-        appShell.classList.remove('hidden');
-        appShell.style.display = 'flex';
-        if (!AppState.currentTab) AppState.currentTab = 'dashboard';
-        switchAppTab(AppState.currentTab);
-      }
-    }
-
-    // App Sub-Tab Switcher
-    function switchAppTab(tabName) {
-      AppState.currentTab = tabName;
-      
-      const breadcrumb = document.getElementById('header-breadcrumbs');
-      if (breadcrumb) {
-        breadcrumb.textContent = tabName === 'editor' ? 'Clip Studio Editor' : tabName === 'projects' ? 'Projects & Library' : 'Dashboard';
-      }
-
-      // Hide all tabs (remove both hidden and flex)
-      document.querySelectorAll('.tab-content').forEach(tab => {
-        tab.classList.add('hidden');
-        tab.style.display = '';
-      });
-      document.querySelectorAll('aside nav button').forEach(btn => {
-        btn.className = 'w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-on-surface-variant hover:bg-surface-container-high hover:text-white transition-all text-left';
-      });
-
-      const targetTab = document.getElementById(`tab-${tabName}`);
-      if (targetTab) {
-        targetTab.classList.remove('hidden');
-        // Tab editor needs flex layout to work
-        if (tabName === 'editor') {
-          targetTab.style.display = 'flex';
-        }
-      }
-
-      const activeNavBtn = document.getElementById(`nav-${tabName}`);
-      if (activeNavBtn) {
-        activeNavBtn.className = 'w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-primary-container text-on-primary-container font-bold shadow-md shadow-primary-container/20 transition-all text-left';
-      }
-
-      if (tabName === 'projects') {
-        loadDatabaseProjects();
-      }
-      // Close mobile sidebar on navigation
-      const sidebar = document.getElementById('app-sidebar');
-      if (sidebar && !sidebar.classList.contains('-translate-x-full')) {
-        sidebar.classList.add('-translate-x-full');
-        document.getElementById('sidebar-overlay')?.classList.add('hidden');
-      }
-    }
-
-    // Modal Helpers
-    function toggleModal(modalId, show) {
-      const modal = document.getElementById(modalId);
-      if (modal) {
-        if (show) {
-          modal.classList.remove('hidden');
-          modal.classList.add('flex');
-        } else {
-          modal.classList.add('hidden');
-          modal.classList.remove('flex');
-        }
-      }
-    }
-
-    // Toast Manager
-    function showToast(message, type = 'info') {
-      const container = document.getElementById('toast-container');
-      const toast = document.createElement('div');
-      
-      let borderClass = 'border-surface-container-highest';
-      let icon = 'info';
-      let iconColor = 'text-primary-container';
-
-      if (type === 'success') {
-        borderClass = 'border-green-500/50';
-        icon = 'check_circle';
-        iconColor = 'text-green-400';
-      } else if (type === 'error') {
-        borderClass = 'border-error/50';
-        icon = 'error';
-        iconColor = 'text-error';
-      }
-
-      toast.className = `pointer-events-auto bg-surface-container-high/95 backdrop-blur-md border ${borderClass} text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-xs font-medium transform translate-y-4 opacity-0 transition-all duration-300 max-w-sm`;
-      toast.innerHTML = `
-        <span class="material-symbols-outlined ${iconColor} text-lg">${icon}</span>
-        <span class="flex-1">${message}</span>
-      `;
-
-      container.appendChild(toast);
-      setTimeout(() => {
-        toast.classList.remove('translate-y-4', 'opacity-0');
-      }, 10);
-
-      setTimeout(() => {
-        toast.classList.add('opacity-0', 'translate-y-2');
-        setTimeout(() => toast.remove(), 300);
-      }, 3500);
-    }
-
-    // Neural Pipeline Progress Simulator & API Trigger
-    let _pipelineInterval = null;
-
-    function showPipelineModal(sourceName) {
-      const modal = document.getElementById('processing-modal');
-      const sourceLabel = document.getElementById('processing-source-label');
-      const bar = document.getElementById('processing-bar');
-      const text = document.getElementById('processing-status-text');
-      const percentage = document.getElementById('processing-percentage');
-
-      sourceLabel.textContent = `Source: ${sourceName}`;
-      modal.classList.remove('hidden');
-      modal.classList.add('flex');
-
-      let progress = 10;
-      bar.style.width = '10%';
-      percentage.textContent = '10%';
-      text.textContent = 'Ingesting video & audio stream...';
-
-      // Reset steps
-      for (let i = 1; i <= 4; i++) {
-        const step = document.getElementById(`proc-step-${i}`);
-        const icon = document.getElementById(`proc-icon-${i}`);
-        if (i === 1) {
-          step.className = 'flex items-center gap-3 text-sm text-primary-container font-medium transition-all';
-          icon.textContent = 'hourglass_top';
-          icon.className = 'material-symbols-outlined text-primary-container animate-pulse';
-        } else {
-          step.className = 'flex items-center gap-3 text-sm text-on-surface-variant transition-all';
-          icon.textContent = 'radio_button_unchecked';
-          icon.className = 'material-symbols-outlined';
-        }
-      }
-
-      if (_pipelineInterval) clearInterval(_pipelineInterval);
-
-      _pipelineInterval = setInterval(() => {
-        if (progress < 90) {
-          progress += Math.floor(Math.random() * 8) + 4;
-          if (progress > 90) progress = 90;
-          bar.style.width = `${progress}%`;
-          percentage.textContent = `${progress}%`;
-
-          if (progress >= 30 && progress < 60) {
-            text.textContent = 'Whisper V3: Transcribing audio & identifying topic spikes...';
-            document.getElementById('proc-step-2').className = 'flex items-center gap-3 text-sm text-primary-container font-medium';
-            document.getElementById('proc-icon-2').textContent = 'hourglass_top';
-          } else if (progress >= 60 && progress < 85) {
-            text.textContent = 'Groq AI: Scoring virality hooks & transcript highlights...';
-            document.getElementById('proc-step-3').className = 'flex items-center gap-3 text-sm text-primary-container font-medium';
-            document.getElementById('proc-icon-3').textContent = 'hourglass_top';
-          } else if (progress >= 85) {
-            text.textContent = 'Formatting 9:16 kinetic typography & metadata...';
-            document.getElementById('proc-step-4').className = 'flex items-center gap-3 text-sm text-primary-container font-medium';
-            document.getElementById('proc-icon-4').textContent = 'hourglass_top';
-          }
-        }
-      }, 500);
-    }
-
-    function completePipelineModal(clipCount, callback) {
-      if (_pipelineInterval) clearInterval(_pipelineInterval);
-      const bar = document.getElementById('processing-bar');
-      const text = document.getElementById('processing-status-text');
-      const percentage = document.getElementById('processing-percentage');
-
-      bar.style.width = '100%';
-      percentage.textContent = '100%';
-      text.textContent = `Completed! ${clipCount} viral clips generated.`;
-
-      for (let i = 1; i <= 4; i++) {
-        document.getElementById(`proc-step-${i}`).className = 'flex items-center gap-3 text-sm text-green-400 font-medium';
-        document.getElementById(`proc-icon-${i}`).textContent = 'check_circle';
-        document.getElementById(`proc-icon-${i}`).className = 'material-symbols-outlined text-green-400';
-      }
-
-      setTimeout(() => {
-        closeProcessingModal();
-        if (callback) callback();
-      }, 700);
-    }
-
-    function closeProcessingModal() {
-      if (_pipelineInterval) clearInterval(_pipelineInterval);
-      const modal = document.getElementById('processing-modal');
-      modal.classList.add('hidden');
-      modal.classList.remove('flex');
-    }
-
-    // Trigger URL Analysis (Landing Page)
-    function handleLandingUrlSubmit(e) {
-      e.preventDefault();
-      const url = document.getElementById('landing-url-input').value.trim();
-      if (!url) {
-        showToast('Please enter a valid YouTube video URL', 'error');
-        return;
-      }
-      runUrlAnalysis(url, 5, '');
-    }
-
-    // Trigger URL Analysis (Dashboard)
-    function handleDashboardUrlSubmit(e) {
-      e.preventDefault();
-      const url = document.getElementById('dash-url-input').value.trim();
-      const numClips = parseInt(document.getElementById('dash-num-clips').value, 10) || 5;
-      const suffix = document.getElementById('dash-caption-suffix').value.trim();
-      if (!url) {
-        showToast('Please enter a valid YouTube video URL', 'error');
-        return;
-      }
-      runUrlAnalysis(url, numClips, suffix);
-    }
-
-    async function runUrlAnalysis(url, numClips = 5, captionSuffix = '') {
-      showPipelineModal(url);
-
-      try {
-        const response = await fetch('/api/analyze', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url, num_clips: numClips })
-        });
-
-        const data = await response.json();
-        if (!response.ok || data.error) {
-          closeProcessingModal();
-          showToast(data.error || 'Video analysis failed. Please verify the URL.', 'error');
-          return;
-        }
-
-        AppState.currentMetadata = data.metadata;
-        AppState.currentClips = data.clips.map(clip => {
-          let desc = clip.description || '';
-          if (captionSuffix) {
-            desc = desc ? `${desc}\n\n${captionSuffix}` : captionSuffix;
-          }
-          return { ...clip, description: desc, privacyStatus: clip.privacyStatus || 'public' };
-        });
-
-        completePipelineModal(AppState.currentClips.length, () => {
-          showToast(`Analysis complete! ${AppState.currentClips.length} clips ready in Studio.`, 'success');
-          loadClipsIntoStudio(AppState.currentClips);
-          loadDatabaseProjects();
-          switchView('app');
-          switchAppTab('editor');
-        });
-
-      } catch (err) {
-        closeProcessingModal();
-        showToast('Network error during video analysis: ' + err.message, 'error');
-      }
-    }
-
-    // Local Video File Upload & Analysis
-    function triggerFilePicker() {
-      document.getElementById('global-file-input').click();
-    }
-
-    async function handleFileSelected(file) {
-      if (!file) return;
-
-      const numClips = parseInt(document.getElementById('dash-num-clips')?.value || 5, 10);
-      showPipelineModal(`Local Upload: ${file.name}`);
-
-      const formData = new FormData();
-      formData.append('video', file);
-      formData.append('num_clips', numClips);
-      formData.append('title', file.name.replace(/\.[^.]+$/, ''));
-
-      try {
-        const response = await fetch('/api/analyze-local', {
-          method: 'POST',
-          body: formData
-        });
-
-        const data = await response.json();
-        if (!response.ok || data.error) {
-          closeProcessingModal();
-          showToast(data.error || 'Failed to analyze local video file.', 'error');
-          return;
-        }
-
-        AppState.currentMetadata = data.metadata;
-        AppState.currentClips = data.clips.map(clip => ({
-          ...clip,
-          privacyStatus: 'public'
-        }));
-
-        completePipelineModal(AppState.currentClips.length, () => {
-          showToast(`Uploaded & analyzed! ${AppState.currentClips.length} clips ready.`, 'success');
-          loadClipsIntoStudio(AppState.currentClips);
-          loadDatabaseProjects();
-          switchView('app');
-          switchAppTab('editor');
-        });
-
-      } catch (err) {
-        closeProcessingModal();
-        showToast('Local upload failed: ' + err.message, 'error');
-      } finally {
-        document.getElementById('global-file-input').value = '';
-      }
-    }
-
-    // Populate Clip Studio with Clips
-    function loadClipsIntoStudio(clips) {
-      const listContainer = document.getElementById('editor-segments-list');
-      const countLabel = document.getElementById('editor-segment-count');
-      if (countLabel) countLabel.textContent = `${clips.length} viral moment${clips.length !== 1 ? 's' : ''} detected`;
-
-      if (!clips || clips.length === 0) {
-        listContainer.innerHTML = `
-          <div class="p-4 rounded-xl bg-surface-container border border-surface-container-highest text-center text-xs text-on-surface-variant">
-            No clips found.
-          </div>
-        `;
-        return;
-      }
-
-      listContainer.innerHTML = clips.map((clip, index) => {
-        const viralPct = 95 - index * 6;
-        return `
-          <div id="segment-card-${clip.id}" onclick="selectStudioClip(${clip.id})" class="segment-card p-3 rounded-xl ${index === 0 ? 'bg-surface-container-high border-2 border-primary-container' : 'bg-surface-container border border-surface-container-highest hover:border-primary-container/50'} cursor-pointer transition-all space-y-1">
-            <div class="flex justify-between items-center text-[10px] font-mono">
-              <span class="bg-primary-container/20 text-primary-container px-2 py-0.5 rounded font-bold">${viralPct}% Viral Spike</span>
-              <span class="text-on-surface-variant">${clip.startTime} - ${clip.endTime}</span>
-            </div>
-            <h4 class="text-xs font-bold text-white truncate">${clip.title}</h4>
-            <p class="text-[11px] text-on-surface-variant leading-snug line-clamp-2">${clip.reasoning || clip.description || ''}</p>
-          </div>
-        `;
-      }).join('');
-
-      // Select first clip by default
-      if (clips.length > 0 && clips[0].id !== undefined) {
-        selectStudioClip(clips[0].id);
-      }
-    }
-
-    // Select Active Clip in Studio
-    function selectStudioClip(clipId) {
-      const clip = AppState.currentClips.find(c => c.id === clipId);
-      if (!clip) return;
-
-      AppState.activeClip = clip;
-
-      // Update segment cards highlight
-      document.querySelectorAll('.segment-card').forEach(c => {
-        c.className = 'segment-card p-3 rounded-xl bg-surface-container border border-surface-container-highest hover:border-primary-container/50 cursor-pointer transition-all space-y-1';
-      });
-      const activeCard = document.getElementById(`segment-card-${clipId}`);
-      if (activeCard) {
-        activeCard.className = 'segment-card p-3 rounded-xl bg-surface-container-high border-2 border-primary-container cursor-pointer transition-all space-y-1 relative';
-      }
-
-      // Update editor header & inputs
-      const projTitle = document.getElementById('editor-project-title');
-      if (projTitle) projTitle.textContent = clip.title;
-
-      const titleInput = document.getElementById('edit-clip-title');
-      if (titleInput) titleInput.value = clip.title || '';
-
-      const descInput = document.getElementById('edit-clip-desc');
-      if (descInput) descInput.value = clip.description || '';
-
-      const privacySelect = document.getElementById('edit-clip-privacy');
-      if (privacySelect) privacySelect.value = clip.privacyStatus || 'public';
-
-      // Update caption overlay
-      const captionText = document.getElementById('caption-text');
-      const hookText = (clip.title || 'AI HIGHLIGHT').toUpperCase();
-      if (captionText) captionText.textContent = hookText;
-
-      // Update duration and timestamps
-      const dur = Math.max(1, Math.round((clip.end_seconds || 30) - (clip.start_seconds || 0)));
-      AppState.durationSeconds = dur;
-      AppState.currentSeconds = 0;
-
-      const segLabel = document.getElementById('timeline-segment-label');
-      if (segLabel) segLabel.textContent = `Segment: ${clip.startTime} - ${clip.endTime}`;
-
-      // Format total duration properly (MM:SS)
-      const durM = String(Math.floor(dur / 60)).padStart(2, '0');
-      const durS = String(dur % 60).padStart(2, '0');
-      const totalTime = document.getElementById('timeline-total-time');
-      if (totalTime) totalTime.textContent = `/ ${durM}:${durS}`;
-
-      // Video Player File Connection
-      const videoEl = document.getElementById('studio-html5-video');
-      const visWrap = document.getElementById('speaker-visualizer');
-
-      if (clip.file_path && clip.file_path.endsWith('.mp4')) {
-        const clipFileName = clip.file_path.split(/[\\/]/).pop();
-        videoEl.src = `/clips/${clipFileName}`;
-        videoEl.classList.remove('hidden');
-        if (visWrap) visWrap.classList.add('hidden');
-      } else {
-        videoEl.pause();
-        videoEl.classList.add('hidden');
-        if (visWrap) visWrap.classList.remove('hidden');
-      }
-
-      updatePlaybackUI();
-      showToast(`Loaded Clip: "${clip.title}" (${clip.startTime} - ${clip.endTime})`, 'info');
-    }
-
-    // Live metadata edit helpers
-    function updateActiveClipTitle(val) {
-      if (AppState.activeClip) {
-        AppState.activeClip.title = val;
-        const card = document.querySelector(`#segment-card-${AppState.activeClip.id} h4`);
-        if (card) card.textContent = val;
-        const projTitle = document.getElementById('editor-project-title');
-        if (projTitle) projTitle.textContent = val;
-      }
-    }
-
-    function updateActiveClipDesc(val) {
-      if (AppState.activeClip) {
-        AppState.activeClip.description = val;
-      }
-    }
-
-    function updateActiveClipPrivacy(val) {
-      if (AppState.activeClip) {
-        AppState.activeClip.privacyStatus = val;
-      }
-    }
-
-    // Video Playback Simulation & Scrubbing
-    function togglePlayPause() {
-      AppState.isPlaying = !AppState.isPlaying;
-      const playIcon = document.getElementById('player-play-icon');
-      const timelineIcon = document.getElementById('timeline-play-icon');
-      const avatar = document.getElementById('speaker-avatar');
-      const videoEl = document.getElementById('studio-html5-video');
-
-      if (AppState.isPlaying) {
-        if (playIcon) playIcon.textContent = 'pause';
-        if (timelineIcon) timelineIcon.textContent = 'pause';
-        if (avatar) avatar.classList.add('scale-105');
-        if (videoEl && !videoEl.classList.contains('hidden')) {
-          videoEl.play();
-        }
-
-        AppState.playbackTimer = setInterval(() => {
-          AppState.currentSeconds++;
-          if (AppState.currentSeconds > AppState.durationSeconds) {
-            AppState.currentSeconds = 0;
-          }
-          updatePlaybackUI();
-        }, 1000);
-      } else {
-        if (playIcon) playIcon.textContent = 'play_arrow';
-        if (timelineIcon) timelineIcon.textContent = 'play_arrow';
-        if (avatar) avatar.classList.remove('scale-105');
-        if (videoEl) videoEl.pause();
-        clearInterval(AppState.playbackTimer);
-      }
-    }
-
-    function updatePlaybackUI() {
-      const timeBadge = document.getElementById('player-time-badge');
-      const timelineCur = document.getElementById('timeline-current-time');
-      const progressBar = document.getElementById('timeline-progress-bar');
-
-      const formatTime = (sec) => {
-        const m = String(Math.floor(sec / 60)).padStart(2, '0');
-        const s = String(sec % 60).padStart(2, '0');
-        return `${m}:${s}`;
-      };
-
-      const curStr = formatTime(AppState.currentSeconds);
-      const durStr = formatTime(AppState.durationSeconds);
-      if (timeBadge) timeBadge.textContent = `${curStr} / ${durStr}`;
-      if (timelineCur) timelineCur.textContent = curStr;
-
-      const pct = AppState.durationSeconds > 0 ? (AppState.currentSeconds / AppState.durationSeconds) * 100 : 0;
-      if (progressBar) progressBar.style.width = `${pct}%`;
-    }
-
-    function scrubTimeline(e) {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const clickX = e.clientX - rect.left;
-      const pct = Math.max(0, Math.min(1, clickX / rect.width));
-      AppState.currentSeconds = Math.round(pct * AppState.durationSeconds);
-      updatePlaybackUI();
-      
-      const videoEl = document.getElementById('studio-html5-video');
-      if (videoEl && !videoEl.classList.contains('hidden') && videoEl.duration) {
-        videoEl.currentTime = pct * videoEl.duration;
-      }
-    }
-
-    // Aspect Ratio Switcher
-    function setAspectRatio(ratio) {
-      AppState.aspectRatio = ratio;
-      const container = document.getElementById('video-player-container');
-      const badge = document.getElementById('editor-active-ratio-badge');
-
-      document.querySelectorAll('.ratio-btn').forEach(btn => {
-        btn.className = 'ratio-btn p-2.5 rounded-xl border border-surface-container-highest bg-surface-container flex flex-col items-center gap-1 text-on-surface-variant hover:text-white text-xs font-bold transition-all';
-      });
-
-      if (ratio === '9:16') {
-        container.className = 'relative aspect-[9/16] h-[340px] sm:h-[400px] bg-black rounded-2xl border-2 border-surface-container-highest overflow-hidden shadow-2xl transition-all duration-300 flex flex-col justify-between p-4';
-        badge.textContent = '9:16 Portrait (1080x1920)';
-        document.getElementById('ratio-btn-9-16').className = 'ratio-btn p-2.5 rounded-xl border-2 border-primary-container bg-primary-container/10 flex flex-col items-center gap-1 text-primary-container text-xs font-bold transition-all';
-      } else if (ratio === '1:1') {
-        container.className = 'relative aspect-square h-[300px] sm:h-[350px] bg-black rounded-2xl border-2 border-surface-container-highest overflow-hidden shadow-2xl transition-all duration-300 flex flex-col justify-between p-4';
-        badge.textContent = '1:1 Square (1080x1080)';
-        document.getElementById('ratio-btn-1-1').className = 'ratio-btn p-2.5 rounded-xl border-2 border-primary-container bg-primary-container/10 flex flex-col items-center gap-1 text-primary-container text-xs font-bold transition-all';
-      } else if (ratio === '16:9') {
-        container.className = 'relative aspect-[16/9] w-full max-w-[480px] bg-black rounded-2xl border-2 border-surface-container-highest overflow-hidden shadow-2xl transition-all duration-300 flex flex-col justify-between p-4';
-        badge.textContent = '16:9 Landscape (1920x1080)';
-        document.getElementById('ratio-btn-16-9').className = 'ratio-btn p-2.5 rounded-xl border-2 border-primary-container bg-primary-container/10 flex flex-col items-center gap-1 text-primary-container text-xs font-bold transition-all';
-      }
-
-      showToast(`Aspect ratio switched to ${ratio}`, 'info');
-    }
-
-    // Caption Presets
-    async function setCaptionStyle(style) {
-      AppState.captionStyle = style;
-      const captionText = document.getElementById('caption-text');
-      const overlay = document.getElementById('caption-overlay');
-
-      document.querySelectorAll('.caption-preset-card').forEach(card => {
-        card.className = 'caption-preset-card p-2.5 rounded-xl border border-surface-container-highest hover:border-primary-container/50 bg-surface-container cursor-pointer transition-all flex items-center gap-3';
-      });
-
-      if (style === 'tiktok_pop') {
-        document.getElementById('caption-preset-1').className = 'caption-preset-card p-2.5 rounded-xl border-2 border-primary-container bg-surface-container cursor-pointer transition-all flex items-center gap-3';
-        captionText.className = 'text-base sm:text-lg font-black tracking-tight uppercase text-primary-container drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]';
-        overlay.className = 'z-20 text-center px-2 py-2 rounded-xl transition-all duration-300 mt-auto mb-2';
-      } else if (style === 'minimal') {
-        document.getElementById('caption-preset-2').className = 'caption-preset-card p-2.5 rounded-xl border-2 border-primary-container bg-surface-container cursor-pointer transition-all flex items-center gap-3';
-        captionText.className = 'text-sm font-semibold tracking-normal text-white';
-        overlay.className = 'z-20 text-center px-4 py-1.5 bg-black/80 backdrop-blur-sm rounded-lg border border-white/15 transition-all duration-300 mt-auto mb-2';
-      } else if (style === 'bounce') {
-        document.getElementById('caption-preset-3').className = 'caption-preset-card p-2.5 rounded-xl border-2 border-primary-container bg-surface-container cursor-pointer transition-all flex items-center gap-3';
-        captionText.className = 'text-base sm:text-lg font-black italic tracking-tighter uppercase text-cyan-300 drop-shadow-[0_0_12px_rgba(51,228,255,0.7)]';
-        overlay.className = 'z-20 text-center px-2 py-2 rounded-xl transition-all duration-300 mt-auto mb-2';
-      }
-
-      // Sync with backend if clip exists in DB
-      if (AppState.activeClip && AppState.activeClip.id) {
-        try {
-          await fetch(`/api/clip/${AppState.activeClip.id}/caption-style`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ caption_style: style })
-          });
-        } catch (e) {
-          console.warn('Caption style sync note:', e);
-        }
-      }
-
-      showToast(`Caption style updated: ${style}`, 'info');
-    }
-
-    function adjustFontSize(size) {
-      AppState.fontSize = size;
-      const label = document.getElementById('font-size-label');
-      if (label) label.textContent = `${size}px`;
-      const capText = document.getElementById('caption-text');
-      if (capText) capText.style.fontSize = `${size}px`;
-    }
-
-    // Direct Download Cut Clip
-    function downloadCurrentClip() {
-      if (!AppState.activeClip) {
-        showToast('Please select a clip to download', 'error');
-        return;
-      }
-      downloadClipById(AppState.activeClip.id);
-    }
-
-    function downloadClipById(clipId) {
-      showToast(`Preparing FFmpeg cut for Clip #${clipId}...`, 'info');
-      const downloadUrl = `/api/download/${clipId}`;
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.setAttribute('download', `clip_${clipId}.mp4`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-
-    // Export Modal Flow
-    function executeExportFlow() {
-      toggleModal('export-modal', false);
-      const doDownload = document.getElementById('export-opt-download').checked;
-      const doYT = document.getElementById('export-opt-yt').checked;
-
-      if (doDownload && AppState.activeClip) {
-        downloadClipById(AppState.activeClip.id);
-      }
-
-      if (doYT) {
-        uploadCurrentClipToYouTube();
-      }
-    }
-
-    // Post to YouTube Flow
-    async function uploadCurrentClipToYouTube() {
-      if (!AppState.currentUser || !AppState.currentUser.accessToken) {
-        showToast('Connecting YouTube account via Google OAuth...', 'info');
-        connectYouTubeAuth();
-        return;
-      }
-
-      if (!AppState.activeClip) {
-        showToast('Please select a clip first.', 'error');
-        return;
-      }
-
-      showToast('Queueing clip for YouTube Shorts upload...', 'info');
-
-      try {
-        const response = await fetch('/api/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            clips: [AppState.activeClip],
-            access_token: AppState.currentUser.accessToken
-          })
-        });
-
-        const data = await response.json();
-        if (!response.ok || data.error) {
-          showToast('Upload initialization failed: ' + (data.error || 'Server error'), 'error');
-          return;
-        }
-
-        const jobId = data.job_id;
-        showToast(`Job queued (${jobId.substring(0, 8)}). Polling upload status...`, 'success');
-        pollUploadJob(jobId);
-
-      } catch (err) {
-        showToast('Upload request failed: ' + err.message, 'error');
-      }
-    }
-
-    function pollUploadJob(jobId) {
-      const interval = setInterval(async () => {
-        try {
-          const res = await fetch(`/api/status/${jobId}`);
-          const job = await res.json();
-
-          if (job.status === 'completed') {
-            clearInterval(interval);
-            showToast('YouTube Shorts upload completed successfully! 🎉', 'success');
-            loadDatabaseProjects();
-          } else if (job.status === 'failed') {
-            clearInterval(interval);
-            showToast(`Upload failed: ${job.error_message || 'Check channel quota/status'}`, 'error');
-          }
-        } catch (e) {
-          console.warn('Status poll error:', e);
-        }
-      }, 3000);
-    }
-
-    // Google OAuth Authentication
-    function restoreSavedAuthSession() {
-      try {
-        const saved = localStorage.getItem(AUTH_STORAGE_KEY);
-        if (saved) {
-          const user = JSON.parse(saved);
-          if (user && user.accessToken) {
-            AppState.currentUser = user;
-            updateAuthHeaderUI();
-          }
-        }
-      } catch (e) {
-        localStorage.removeItem(AUTH_STORAGE_KEY);
-      }
-    }
-
-    function saveAuthSession(user) {
-      AppState.currentUser = user;
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
-      updateAuthHeaderUI();
-    }
-
-    function updateAuthHeaderUI() {
-      const authSection = document.getElementById('auth-section');
-      const landingBadge = document.getElementById('landing-auth-badge');
-      const hubStatus = document.getElementById('hub-yt-status');
-      const hubBtn = document.getElementById('hub-yt-btn');
-      const modalStatus = document.getElementById('modal-yt-status');
-      const modalAction = document.getElementById('modal-yt-action');
-
-      if (AppState.currentUser) {
-        const u = AppState.currentUser;
-        if (authSection) {
-          authSection.innerHTML = `
-            <div class="flex items-center gap-2.5">
-              <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-              <span class="text-xs font-bold text-white">${u.name || 'YouTube Connected'}</span>
-              <button onclick="disconnectYouTubeAuth()" class="text-[10px] text-red-400 hover:underline">Disconnect</button>
-            </div>
-          `;
-        }
-        if (landingBadge) {
-          landingBadge.innerHTML = `
-            <span class="text-xs font-mono text-green-400 flex items-center gap-1">
-              <span class="w-2 h-2 rounded-full bg-green-400"></span> Connected
-            </span>
-          `;
-        }
-        if (hubStatus) hubStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span> Connected (${u.name || 'YouTube'})`;
-        if (hubBtn) {
-          hubBtn.textContent = 'Active';
-          hubBtn.className = 'text-[10px] font-mono font-bold px-2.5 py-1 bg-green-500/15 text-green-400 rounded-lg uppercase';
-        }
-        if (modalStatus) modalStatus.textContent = `Connected: ${u.name || 'Channel active'}`;
-        if (modalAction) modalAction.textContent = 'Connected ✓';
-      } else {
-        if (authSection) {
-          authSection.innerHTML = `
-            <button onclick="connectYouTubeAuth()" class="px-3.5 py-1.5 rounded-xl bg-red-600/20 text-red-300 hover:bg-red-600/30 border border-red-500/40 text-xs font-bold flex items-center gap-1.5 transition-all">
-              <span class="material-symbols-outlined text-sm filled-icon">play_circle</span> Connect YouTube
-            </button>
-          `;
-        }
-        if (hubStatus) hubStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> Disconnected`;
-        if (hubBtn) {
-          hubBtn.textContent = 'Connect';
-          hubBtn.className = 'text-[10px] font-mono font-bold px-2.5 py-1 bg-primary-container/15 text-primary-container rounded-lg hover:bg-primary-container/30 uppercase transition-colors';
-        }
-      }
-    }
-
-    function connectYouTubeAuth() {
-      if (window.google?.accounts?.oauth2) {
-        if (!AppState.tokenClient) {
-          AppState.tokenClient = window.google.accounts.oauth2.initTokenClient({
-            client_id: CLIENT_ID,
-            scope: 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/userinfo.profile',
-            callback: async (resp) => {
-              if (resp.error) {
-                showToast('OAuth connection failed: ' + (resp.error_description || resp.error), 'error');
-                return;
-              }
-              if (resp.access_token) {
-                try {
-                  const uRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                    headers: { Authorization: `Bearer ${resp.access_token}` }
-                  });
-                  const userInfo = uRes.ok ? await uRes.json() : {};
-                  saveAuthSession({
-                    name: userInfo.name || 'YouTube Creator',
-                    picture: userInfo.picture,
-                    accessToken: resp.access_token,
-                    expiresAt: Date.now() + (resp.expires_in || 3600) * 1000
-                  });
-                  showToast('YouTube account connected successfully!', 'success');
-                  toggleModal('platform-modal', false);
-                } catch (e) {
-                  saveAuthSession({
-                    name: 'YouTube Account',
-                    accessToken: resp.access_token,
-                    expiresAt: Date.now() + 3600000
-                  });
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClipAI</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        background: '#111520', /* Exact dark background from image */
+                        card: '#1a1d27',
+                        border: 'rgba(255, 255, 255, 0.08)',
+                    }
                 }
-              }
             }
-          });
         }
-        AppState.tokenClient.requestAccessToken({ prompt: 'select_account' });
-      } else {
-        showToast('Google Identity Service is loading, please try in a moment.', 'info');
-      }
-    }
+    </script>
+    <style>
+        body {
+            background-color: #111520;
+            color: #ffffff;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.15), transparent 25%),
+                radial-gradient(circle at 85% 30%, rgba(168, 85, 247, 0.15), transparent 25%);
+        }
+        
+        /* Glassmorphism panel for the main search box */
+        .glass-hero {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
 
-    function disconnectYouTubeAuth() {
-      localStorage.removeItem(AUTH_STORAGE_KEY);
-      AppState.currentUser = null;
-      updateAuthHeaderUI();
-      showToast('YouTube account disconnected.', 'info');
-    }
+        .gradient-btn {
+            background: linear-gradient(to right, #3b82f6, #a855f7);
+            transition: opacity 0.2s ease;
+        }
+        .gradient-btn:hover {
+            opacity: 0.9;
+        }
 
-    function connectSocialMock(platform, handle) {
-      toggleModal('platform-modal', false);
-      showToast(`${platform} (${handle}) configured for auto-publishing!`, 'success');
-    }
+        /* Hide scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center">
 
-    // Projects & Database Listing
-    async function loadDatabaseProjects() {
-      try {
-        const res = await fetch('/api/projects');
-        const data = await res.json();
-        if (!res.ok) return;
-
-        const clips = data.clips || [];
-        const stats = data.stats || {};
-
-        // Update stats KPI
-        const totalClipsEl = document.getElementById('stats-total-clips');
-        if (totalClipsEl) totalClipsEl.textContent = stats.total_clips || clips.length;
-
-        const completedEl = document.getElementById('stats-completed-clips');
-        if (completedEl) completedEl.textContent = stats.completed_clips || 0;
-
-        // Render Dashboard Recent Clips
-        renderDashboardRecent(clips);
-
-        // Render Projects Table
-        renderProjectsTable(clips);
-
-      } catch (err) {
-        console.warn('Projects load note:', err);
-      }
-    }
-
-    function renderDashboardRecent(clips) {
-      const recentGrid = document.getElementById('dashboard-recent-grid');
-      if (!recentGrid) return;
-
-      if (!clips || clips.length === 0) {
-        recentGrid.innerHTML = `
-          <div class="col-span-2 p-8 rounded-2xl bg-surface-container border border-surface-container-highest text-center text-xs text-on-surface-variant">
-            No analyzed clips in history yet. Paste a video link above or upload a video file to get started!
-          </div>
-        `;
-        return;
-      }
-
-      recentGrid.innerHTML = clips.slice(0, 4).map((clip, index) => {
-        const viralScore = 98 - (index * 4);
-        return `
-          <div class="bg-surface-container rounded-2xl overflow-hidden border border-surface-container-highest hover:border-primary-container/50 transition-all group shadow-md flex flex-col justify-between">
-            <div class="relative h-40 bg-surface-container-highest flex items-center justify-center overflow-hidden">
-              <div class="absolute inset-0 bg-gradient-to-tr from-black/80 to-transparent z-10"></div>
-              <div class="w-14 h-14 rounded-full bg-primary-container/20 text-primary-container flex items-center justify-center border border-primary-container/40 group-hover:scale-110 transition-transform z-20 cursor-pointer" onclick="openClipDirectly(${clip.id})">
-                <span class="material-symbols-outlined text-2xl filled-icon">play_arrow</span>
-              </div>
-              <div class="absolute top-3 left-3 z-20 px-2 py-0.5 rounded-full bg-primary-container/20 border border-primary-container/40 text-primary-container text-[10px] font-mono font-bold flex items-center gap-1">
-                <span class="material-symbols-outlined text-xs filled-icon">local_fire_department</span> ${viralScore}% Viral
-              </div>
-              <div class="absolute top-3 right-3 z-20 px-2 py-0.5 rounded bg-black/60 backdrop-blur-sm text-white text-[10px] font-mono">
-                ${clip.startTime} - ${clip.endTime}
-              </div>
+    <!-- Header -->
+    <header class="w-full max-w-[1200px] mx-auto px-6 py-6 flex items-center justify-between z-20">
+        <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center font-bold text-white shadow-lg">
+                G
             </div>
-            <div class="p-4 space-y-3">
-              <div>
-                <h3 class="text-sm font-bold text-white group-hover:text-primary-container transition-colors truncate">${clip.title}</h3>
-                <p class="text-xs text-on-surface-variant font-mono line-clamp-1">${clip.reasoning || clip.description || ''}</p>
-              </div>
-              <div class="flex justify-between items-center pt-2 border-t border-surface-container-highest text-xs">
-                <span class="text-[11px] text-primary-container font-mono uppercase">${clip.status || 'analyzed'}</span>
-                <div class="flex gap-2">
-                  <button onclick="openClipDirectly(${clip.id})" class="px-3 py-1 rounded-lg bg-surface-container-highest hover:bg-primary-container hover:text-black transition-colors font-bold text-[11px] flex items-center gap-1">
-                    <span class="material-symbols-outlined text-sm">edit</span> Edit
-                  </button>
-                  <button onclick="downloadClipById(${clip.id})" class="px-3 py-1 rounded-lg bg-surface-container-highest hover:bg-surface-container-high transition-colors text-[11px] flex items-center gap-1">
-                    <span class="material-symbols-outlined text-sm">download</span>
-                  </button>
+            <span class="text-xl font-semibold tracking-tight text-white">ClipAI</span>
+        </div>
+        
+        <nav class="hidden md:flex items-center gap-8 text-[15px] text-gray-300 font-medium">
+            <a href="#" class="hover:text-white transition-colors">Features</a>
+            <a href="#" class="hover:text-white transition-colors">Pricing</a>
+            <a href="#" class="hover:text-white transition-colors">API</a>
+            <a href="#" class="hover:text-white transition-colors">Account</a>
+            <button class="px-5 py-2 rounded-xl border border-gray-600 hover:border-gray-400 text-white transition-colors">
+                Try for Free
+            </button>
+        </nav>
+    </header>
+
+    <!-- Main Hero -->
+    <main class="w-full max-w-[1200px] mx-auto flex-1 flex flex-col items-center px-4 pt-12 pb-20 z-10">
+        
+        <!-- Glass Search Box -->
+        <div class="glass-hero rounded-[2rem] p-8 w-full max-w-[600px] flex flex-col items-center gap-6 mt-10 relative overflow-hidden mb-16">
+            <!-- decorative background blur inside the box -->
+            <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-purple-500/20 blur-[60px] rounded-full pointer-events-none"></div>
+
+            <form id="analyze-form" class="w-full relative z-10 flex flex-col items-center gap-6">
+                
+                <div class="w-full relative flex items-center">
+                    <svg class="absolute left-4 w-6 h-6 text-red-500" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
+                    </svg>
+                    <input type="url" id="video-url" required placeholder="Paste YouTube link here" 
+                           class="w-full bg-black/20 text-white placeholder-gray-400 rounded-2xl py-4 pl-12 pr-4 border border-white/10 focus:border-purple-500/50 outline-none transition-all text-[15px]">
                 </div>
-              </div>
-            </div>
-          </div>
-        `;
-      }).join('');
-    }
 
-    function renderProjectsTable(clips) {
-      const tbody = document.getElementById('projects-table-body');
-      if (!tbody) return;
+                <button type="submit" id="submit-btn" class="gradient-btn text-white font-semibold py-3 px-8 rounded-xl shadow-lg flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[18px]">link</span>
+                    Generate Clips
+                </button>
+            </form>
+        </div>
 
-      if (!clips || clips.length === 0) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="5" class="p-8 text-center text-xs text-on-surface-variant">
-              No project records found in database.
-            </td>
-          </tr>
-        `;
-        return;
-      }
+        <!-- Loading State -->
+        <div id="loading-state" class="hidden flex-col items-center gap-4 mb-16 animate-pulse">
+            <div class="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            <p class="text-gray-300 font-medium" id="loading-text">Analyzing video...</p>
+        </div>
 
-      tbody.innerHTML = clips.map(clip => `
-        <tr class="project-row hover:bg-surface-container-high transition-colors" data-title="${(clip.title || '').replace(/"/g, '&quot;')}" data-status="${clip.status || 'analyzed'}" data-reasoning="${(clip.reasoning || '').replace(/"/g, '&quot;')}">
-          <td class="p-4 flex items-center gap-3">
-            <div class="w-10 h-8 rounded bg-surface-container-lowest flex items-center justify-center font-bold text-primary-container border border-surface-container-highest text-[10px]">
-              HD
-            </div>
-            <div class="min-w-0 max-w-xs">
-              <p class="font-bold text-white truncate">${clip.title}</p>
-              <p class="text-[10px] text-on-surface-variant truncate">${clip.reasoning || clip.description || ''}</p>
-            </div>
-          </td>
-          <td class="p-4">
-            <span class="inline-flex items-center gap-1 text-primary-container font-mono text-[11px]">
-              <span class="w-2 h-2 rounded-full bg-primary-container"></span> ${clip.status || 'analyzed'}
-            </span>
-          </td>
-          <td class="p-4 font-mono text-on-surface-variant text-[11px]">${clip.startTime} - ${clip.endTime}</td>
-          <td class="p-4 font-mono text-on-surface-variant text-[11px] uppercase">${clip.privacyStatus || 'public'}</td>
-          <td class="p-4 text-right">
-            <div class="flex items-center justify-end gap-1.5">
-              <button onclick="openClipDirectly(${clip.id})" class="px-2.5 py-1 rounded bg-surface-container-highest hover:bg-primary-container hover:text-black font-bold transition-all text-xs">
-                Edit
-              </button>
-              <button onclick="downloadClipById(${clip.id})" class="px-2.5 py-1 rounded bg-surface-container-highest hover:bg-surface-container-high transition-all text-xs">
-                Download
-              </button>
-            </div>
-          </td>
-        </tr>
-      `).join('');
-    }
+        <!-- Error State -->
+        <div id="error-state" class="hidden bg-red-500/10 border border-red-500/20 text-red-400 px-6 py-4 rounded-xl mb-16 max-w-lg text-center">
+            <span class="material-symbols-outlined block text-3xl mb-2 mx-auto">error</span>
+            <span id="error-message">Failed to generate clips.</span>
+        </div>
 
-    async function openClipDirectly(clipId) {
-      let clip = AppState.currentClips.find(c => c.id === clipId);
-      if (!clip) {
-        // Fetch from projects list
-        try {
-          const res = await fetch('/api/projects');
-          const data = await res.json();
-          AppState.currentClips = data.clips || [];
-          clip = AppState.currentClips.find(c => c.id === clipId);
-        } catch (e) {}
-      }
+        <!-- Results Header -->
+        <div id="results-header" class="hidden flex-col items-center text-center mb-8">
+            <h2 class="text-[22px] font-medium text-gray-300">Generated Clips from: <span class="text-white font-semibold" id="meta-title">"..."</span></h2>
+            <p class="text-gray-400 text-sm mt-1.5 font-medium"><span id="meta-duration"></span>, 1080p</p>
+        </div>
 
-      if (clip) {
-        loadClipsIntoStudio(AppState.currentClips);
-        selectStudioClip(clip.id);
-        switchView('app');
-        switchAppTab('editor');
-      } else {
-        showToast('Could not load clip details.', 'error');
-      }
-    }
+        <!-- Clips Grid -->
+        <div id="clips-grid" class="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-20">
+            <!-- Cards will be injected here -->
+        </div>
 
-    // Projects Filtering
-    function filterProjectTable() {
-      const query = document.getElementById('project-search-input').value.toLowerCase();
-      document.querySelectorAll('.project-row').forEach(row => {
-        const title = (row.getAttribute('data-title') || '').toLowerCase();
-        const reasoning = (row.getAttribute('data-reasoning') || '').toLowerCase();
-        if (title.includes(query) || reasoning.includes(query)) {
-          row.style.display = '';
-        } else {
-          row.style.display = 'none';
+    </main>
+
+    <script>
+        const form = document.getElementById('analyze-form');
+        const urlInput = document.getElementById('video-url');
+        const submitBtn = document.getElementById('submit-btn');
+        
+        const loadingState = document.getElementById('loading-state');
+        const errorState = document.getElementById('error-state');
+        const resultsHeader = document.getElementById('results-header');
+        const clipsGrid = document.getElementById('clips-grid');
+        const errorMessage = document.getElementById('error-message');
+
+        const loadingTexts = [
+            "Downloading transcript...",
+            "Analyzing with Groq AI...",
+            "Scoring viral moments...",
+            "Trimming highlights..."
+        ];
+        let loadingInterval;
+
+        function resetUI() {
+            loadingState.classList.add('hidden');
+            errorState.classList.add('hidden');
+            resultsHeader.classList.add('hidden');
+            clipsGrid.innerHTML = '';
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = '1';
+            clearInterval(loadingInterval);
         }
-      });
-    }
 
-    function setProjectCategory(category, btnEl) {
-      document.querySelectorAll('.category-filter-btn').forEach(btn => {
-        btn.className = 'category-filter-btn px-3 py-1.5 rounded-lg bg-surface-container-low hover:bg-surface-container-highest text-on-surface-variant text-xs';
-      });
-      if (btnEl) btnEl.className = 'category-filter-btn px-3 py-1.5 rounded-lg bg-primary-container text-black font-bold text-xs';
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const url = urlInput.value.trim();
+            if(!url) return;
 
-      document.querySelectorAll('.project-row').forEach(row => {
-        const status = row.getAttribute('data-status') || '';
-        if (category === 'all' || status.toLowerCase() === category.toLowerCase()) {
-          row.style.display = '';
-        } else {
-          row.style.display = 'none';
+            resetUI();
+            
+            // Show Loading
+            loadingState.classList.remove('hidden');
+            loadingState.classList.add('flex');
+            submitBtn.disabled = true;
+            submitBtn.style.opacity = '0.5';
+            
+            let textIdx = 0;
+            document.getElementById('loading-text').innerText = loadingTexts[0];
+            loadingInterval = setInterval(() => {
+                textIdx = (textIdx + 1) % loadingTexts.length;
+                document.getElementById('loading-text').innerText = loadingTexts[textIdx];
+            }, 3000);
+
+            try {
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url, num_clips: 6 })
+                });
+
+                const data = await response.json();
+                clearInterval(loadingInterval);
+                loadingState.classList.add('hidden');
+                loadingState.classList.remove('flex');
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to process video.');
+                }
+
+                renderResults(data);
+
+            } catch (err) {
+                clearInterval(loadingInterval);
+                loadingState.classList.add('hidden');
+                loadingState.classList.remove('flex');
+                errorState.classList.remove('hidden');
+                errorMessage.innerText = err.message;
+                submitBtn.disabled = false;
+                submitBtn.style.opacity = '1';
+            }
+        });
+
+        function formatDurationStr(isoStr) {
+            let s = isoStr.replace('PT', '').toLowerCase();
+            return s;
         }
-      });
-    }
 
-    // Sidebar & Notifications
-    function toggleMobileSidebar() {
-      const sidebar = document.getElementById('app-sidebar');
-      const overlay = document.getElementById('sidebar-overlay');
-      if (sidebar) {
-        const isOpen = !sidebar.classList.contains('-translate-x-full');
-        if (isOpen) {
-          sidebar.classList.add('-translate-x-full');
-          overlay?.classList.add('hidden');
-        } else {
-          sidebar.classList.remove('-translate-x-full');
-          overlay?.classList.remove('hidden');
+        function formatSecondsToTime(secs) {
+            const m = Math.floor(secs / 60);
+            const s = Math.floor(secs % 60);
+            return `${m}:${s.toString().padStart(2, '0')}`;
         }
-      }
-    }
 
-    function toggleNotificationDropdown() {
-      const dd = document.getElementById('notif-dropdown');
-      if (dd) dd.classList.toggle('hidden');
-      const badge = document.getElementById('notif-badge');
-      if (badge) badge.classList.add('hidden');
-    }
+        function renderResults(data) {
+            resultsHeader.classList.remove('hidden');
+            resultsHeader.classList.add('flex');
+            
+            document.getElementById('meta-title').innerText = `"${data.metadata.title}"`;
+            document.getElementById('meta-duration').innerText = formatDurationStr(data.metadata.duration);
 
-    function clearNotifications() {
-      const dd = document.getElementById('notif-dropdown');
-      if (dd) dd.classList.add('hidden');
-      showToast('Notifications marked as read.', 'info');
-    }
+            clipsGrid.innerHTML = '';
 
-    // Close notification dropdown on outside click
-    document.addEventListener('click', (e) => {
-      const dd = document.getElementById('notif-dropdown');
-      const btn = e.target.closest('button[onclick="toggleNotificationDropdown()"]');
-      if (dd && !dd.classList.contains('hidden') && !dd.contains(e.target) && !btn) {
-        dd.classList.add('hidden');
-      }
-    });
-  </script>
+            if(!data.clips || data.clips.length === 0) {
+                clipsGrid.innerHTML = `<div class="col-span-full text-center text-gray-400 py-10">No clips found.</div>`;
+                submitBtn.disabled = false;
+                submitBtn.style.opacity = '1';
+                return;
+            }
+
+            data.clips.forEach((clip, index) => {
+                const durationSecs = clip.end_seconds - clip.start_seconds;
+                const timeLabel = formatSecondsToTime(durationSecs);
+                
+                const card = document.createElement('div');
+                card.className = "bg-card rounded-2xl border border-border overflow-hidden flex flex-col group hover:border-white/20 transition-colors";
+                
+                card.innerHTML = `
+                    <div class="relative w-full aspect-video bg-black/50 overflow-hidden">
+                        <img src="${data.metadata.thumbnail}" alt="Thumbnail" class="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500">
+                        <div class="absolute bottom-2 right-2 bg-black/70 backdrop-blur-md px-2 py-0.5 rounded text-[11px] font-medium text-white border border-white/10">
+                            ${timeLabel}
+                        </div>
+                    </div>
+                    <div class="p-5 flex flex-col flex-1">
+                        <h3 class="text-[15px] font-semibold text-white leading-snug line-clamp-2 mb-4 flex-1">
+                            ${clip.clip_id_num}. ${clip.title}
+                        </h3>
+                        
+                        <div class="flex items-center gap-3 mt-auto">
+                            <a href="/api/download/${clip.id}" target="_blank" 
+                               class="gradient-btn text-white text-[13px] font-semibold py-2 px-5 rounded-full shadow-lg flex items-center justify-center">
+                                Download
+                            </a>
+                            <div class="text-[11px] font-medium text-gray-500 uppercase tracking-wide">
+                                MP4 | 1080p | ~${Math.round(durationSecs * 0.5)}MB
+                            </div>
+                        </div>
+                    </div>
+                `;
+                clipsGrid.appendChild(card);
+            });
+            
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = '1';
+        }
+    </script>
 </body>
 </html>

@@ -6,6 +6,24 @@ import imageio_ffmpeg
 
 logger = logging.getLogger(__name__)
 
+# Common browser User-Agent for yt-dlp requests to avoid bot detection
+_YT_USER_AGENT = (
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+    'AppleWebKit/537.36 (KHTML, like Gecko) '
+    'Chrome/125.0.0.0 Safari/537.36'
+)
+
+# Robust extractor args: try multiple player clients so YouTube can't block all of them
+_YT_EXTRACTOR_ARGS = {
+    'youtube': {
+        'player_client': ['web', 'ios', 'android'],
+    }
+}
+
+# Format selection with multiple fallbacks: prefer a single-stream mp4 to avoid needing ffmpeg merge
+_YT_FORMAT = 'best[ext=mp4][height<=720]/best[height<=720]/best[ext=mp4]/best'
+
+
 def get_ffmpeg_path() -> str:
     """Returns absolute path to working ffmpeg executable provided by imageio-ffmpeg."""
     try:
@@ -21,6 +39,7 @@ def get_ffmpeg_path() -> str:
     except Exception as e:
         logger.warning(f"Could not get imageio-ffmpeg path: {e}")
     return 'ffmpeg'
+
 
 def _ensure_ffmpeg_on_path():
     """
@@ -38,10 +57,12 @@ def _ensure_ffmpeg_on_path():
     except Exception as e:
         logger.warning(f"Failed to append FFmpeg dir to PATH: {e}")
 
+
 # Ensure PATH is set on module import
 _ensure_ffmpeg_on_path()
 
-def _get_ytdlp_ffmpeg_dir() -> str:
+
+def _get_ytdlp_ffmpeg_dir() -> tuple:
     """
     yt-dlp looks for a binary literally named 'ffmpeg' / 'ffmpeg.exe' in the
     given directory. imageio-ffmpeg ships it with a versioned name like
@@ -49,7 +70,7 @@ def _get_ytdlp_ffmpeg_dir() -> str:
 
     This helper creates a temporary directory containing a hard-link (or copy)
     named 'ffmpeg.exe' that points to the real binary, then returns the dir path.
-    The caller is responsible for cleaning it up.
+    Returns (ffmpeg_dir, temp_dir_to_cleanup) — temp_dir is None if no temp dir created.
     """
     import sys
     import shutil
@@ -105,18 +126,22 @@ def download_clip_segment(video_url: str, clip_id: str, start_seconds: float, en
     logger.info(f"yt-dlp ffmpeg dir: {ffmpeg_dir}")
 
     ydl_opts = {
-        # Use a single combined stream so yt-dlp does NOT need ffmpeg to merge.
-        # We re-encode to 9:16 with our own FFmpeg call anyway.
-        'format': 'best[height<=720]/best',
+        'format': _YT_FORMAT,
         'outtmpl': target_pattern,
-        'ffmpeg_location': ffmpeg_dir,
+        'ffmpeg_location': ffmpeg_dir,   # Must be a DIRECTORY, not file path
         'quiet': False,
-        'no_warnings': True,
+        'no_warnings': False,
         'retries': 5,
-        'socket_timeout': 30,
+        'fragment_retries': 5,
+        'socket_timeout': 60,
         'download_ranges': yt_dlp.utils.download_range_func(None, [(seg_start, seg_end)]),
-        # Skip keyframe forcing — our FFmpeg re-cut handles precision
         'force_keyframes_at_cuts': False,
+        # 403 fix: multiple player clients + browser headers
+        'extractor_args': _YT_EXTRACTOR_ARGS,
+        'http_headers': {
+            'User-Agent': _YT_USER_AGENT,
+            'Accept-Language': 'en-US,en;q=0.9',
+        },
     }
 
     try:
@@ -140,9 +165,6 @@ def download_clip_segment(video_url: str, clip_id: str, start_seconds: float, en
                 pass
 
 
-
-
-# Keep backward-compatible alias (downloads full video — use download_clip_segment instead)
 def download_source_video(video_url: str, video_id: str, clips_folder: str) -> str:
     """
     Downloads the full YouTube video ONCE using yt-dlp.
@@ -150,6 +172,9 @@ def download_source_video(video_url: str, video_id: str, clips_folder: str) -> s
     Returns the path to the downloaded source MP4 file.
     Raises RuntimeError if download fails.
     """
+    import shutil
+
+    _ensure_ffmpeg_on_path()
     os.makedirs(clips_folder, exist_ok=True)
     target_pattern = os.path.join(clips_folder, f'full_{video_id}.mp4')
 
@@ -157,18 +182,26 @@ def download_source_video(video_url: str, video_id: str, clips_folder: str) -> s
         logger.info(f"Source video full_{video_id}.mp4 already downloaded.")
         return target_pattern
 
-    ffmpeg_exe = get_ffmpeg_path()
-    logger.info(f"Using FFmpeg binary at: {ffmpeg_exe}")
+    # Build a temp dir with a properly-named ffmpeg.exe for yt-dlp detection
+    ffmpeg_dir, temp_dir = _get_ytdlp_ffmpeg_dir()
+    logger.info(f"Using FFmpeg directory for yt-dlp: {ffmpeg_dir}")
 
     ydl_opts = {
-        'format': 'bestvideo[height<=720]+bestaudio/best[height<=720]/best',
+        'format': _YT_FORMAT,
         'outtmpl': target_pattern,
         'merge_output_format': 'mp4',
-        'ffmpeg_location': ffmpeg_exe,
+        'ffmpeg_location': ffmpeg_dir,   # Must be a DIRECTORY, not file path
         'quiet': False,
-        'no_warnings': True,
+        'no_warnings': False,
         'retries': 5,
-        'socket_timeout': 30,
+        'fragment_retries': 5,
+        'socket_timeout': 60,
+        # 403 fix: multiple player clients + browser headers
+        'extractor_args': _YT_EXTRACTOR_ARGS,
+        'http_headers': {
+            'User-Agent': _YT_USER_AGENT,
+            'Accept-Language': 'en-US,en;q=0.9',
+        },
     }
 
     try:
@@ -183,6 +216,14 @@ def download_source_video(video_url: str, video_id: str, clips_folder: str) -> s
     except Exception as e:
         logger.error(f"Download failed for video {video_id}: {e}")
         raise RuntimeError(f"Video download failed: {str(e)}")
+    finally:
+        # Clean up the temporary ffmpeg stub directory if we created one
+        if temp_dir and os.path.isdir(temp_dir):
+            try:
+                shutil.rmtree(temp_dir)
+            except Exception:
+                pass
+
 
 def cut_and_format_clip(source_video_path: str, start_seconds: float, duration_seconds: float, output_clip_path: str) -> str:
     """
@@ -224,6 +265,7 @@ def cut_and_format_clip(source_video_path: str, start_seconds: float, duration_s
         raise RuntimeError(f"FFmpeg processing failed: {error_msg}")
 
     return output_clip_path
+
 
 def cleanup_source_video(source_video_path: str):
     """Clean up source full video after clips are created"""

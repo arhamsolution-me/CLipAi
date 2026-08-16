@@ -3,10 +3,11 @@ import re
 import json
 import uuid
 import logging
+import subprocess
 from threading import Thread
 from datetime import datetime
 
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify, send_file, send_from_directory
 from werkzeug.utils import secure_filename
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -18,7 +19,7 @@ from rq import Queue
 from models import db, Job, Clip, cleanup_old_data, auto_migrate_schema
 from services.transcript_service import fetch_youtube_transcript, format_transcript_for_prompt
 from services.ai_service import analyze_transcript_highlights, generate_ai_clip_metadata, seconds_to_timestamp, timestamp_to_seconds
-from services.video_service import download_source_video, cut_and_format_clip
+from services.video_service import download_source_video, download_clip_segment, cut_and_format_clip, get_ffmpeg_path
 from tasks import process_job_task
 
 # Configure logging
@@ -131,8 +132,6 @@ def parse_duration(duration_str: str) -> int:
 
 def probe_local_video_duration(file_path: str) -> float:
     """Use FFmpeg to probe video duration in seconds."""
-    from services.video_service import get_ffmpeg_path
-    import subprocess
     ffmpeg_exe = get_ffmpeg_path()
     # ffprobe is in the same directory as ffmpeg
     ffprobe_path = os.path.join(os.path.dirname(ffmpeg_exe), 'ffprobe.exe')
@@ -144,8 +143,7 @@ def probe_local_video_duration(file_path: str) -> float:
              '-show_format', '-show_streams', file_path],
             capture_output=True, text=True, timeout=30
         )
-        import json as _json
-        info = _json.loads(result.stdout)
+        info = json.loads(result.stdout)
         duration = float(info.get('format', {}).get('duration', 0))
         if duration <= 0:
             # Try streams
@@ -159,13 +157,11 @@ def probe_local_video_duration(file_path: str) -> float:
         logger.warning(f"ffprobe failed ({e}), falling back to ffmpeg duration probe.")
     # Fallback: use ffmpeg stderr to read duration
     try:
-        from services.video_service import get_ffmpeg_path as _ffmp
         result2 = subprocess.run(
             [ffmpeg_exe, '-i', file_path],
             capture_output=True, text=True, timeout=30
         )
-        import re as _re
-        m = _re.search(r'Duration:\s*(\d+):(\d+):([\d.]+)', result2.stderr)
+        m = re.search(r'Duration:\s*(\d+):(\d+):([\d.]+)', result2.stderr)
         if m:
             h, mn, s = int(m.group(1)), int(m.group(2)), float(m.group(3))
             return h * 3600 + mn * 60 + s
@@ -176,7 +172,8 @@ def probe_local_video_duration(file_path: str) -> float:
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    google_client_id = os.getenv('GOOGLE_OAUTH_CLIENT_ID', '')
+    return render_template('index.html', google_client_id=google_client_id)
 
 
 @app.route('/api/analyze', methods=['POST'])
@@ -509,8 +506,21 @@ def download_clip(clip_id):
                 return jsonify({'error': 'Local source video file no longer exists on server.'}), 404
             cut_and_format_clip(source_path, clip.start_seconds, duration, expected_path)
         else:
-            source_path = download_source_video(clip.video_url, clip.video_id, clips_folder)
-            cut_and_format_clip(source_path, clip.start_seconds, duration, expected_path)
+            # Use segment download (efficient — downloads only the clip window, not the full video)
+            seg_path = download_clip_segment(
+                video_url=clip.video_url,
+                clip_id=str(clip.id),
+                start_seconds=clip.start_seconds,
+                end_seconds=clip.end_seconds,
+                clips_folder=clips_folder
+            )
+            seg_offset = min(2.0, clip.start_seconds)  # 2s buffer was prepended by download_clip_segment
+            cut_and_format_clip(seg_path, seg_offset, duration, expected_path)
+            # Clean up the raw segment after cutting
+            try:
+                os.remove(seg_path)
+            except Exception:
+                pass
 
         clip.file_path = expected_path
         db.session.commit()
@@ -579,6 +589,36 @@ def update_clip_caption_style(clip_id):
             return jsonify({'warning': 'Updated DB settings, but re-render failed', 'error': str(e), 'clip': clip.to_dict()}), 200
 
     return jsonify({'message': 'Caption style updated successfully', 'clip': clip.to_dict()})
+
+@app.route('/clips/<path:filename>')
+@limiter.exempt
+def serve_clip_file(filename):
+    """Serve generated clip video files or uploaded source files for in-browser playback/preview."""
+    clips_folder = os.path.join(app.root_path, 'clips')
+    return send_from_directory(clips_folder, filename)
+
+@app.route('/api/projects', methods=['GET'])
+@limiter.exempt
+def get_projects():
+    """Retrieve list of recent clips and projects from the database for the dashboard and library."""
+    try:
+        clips = db.session.query(Clip).order_by(Clip.created_at.desc()).limit(50).all()
+        total_clips = db.session.query(Clip).count()
+        completed_clips = db.session.query(Clip).filter_by(status='completed').count()
+        jobs_count = db.session.query(Job).count()
+
+        clips_list = [c.to_dict() for c in clips]
+        return jsonify({
+            'clips': clips_list,
+            'stats': {
+                'total_clips': total_clips,
+                'completed_clips': completed_clips,
+                'total_projects': jobs_count
+            }
+        })
+    except Exception as e:
+        logger.error(f"Error fetching projects: {e}")
+        return jsonify({'error': str(e), 'clips': [], 'stats': {'total_clips': 0, 'completed_clips': 0, 'total_projects': 0}}), 500
 
 @app.route('/api/admin/cleanup', methods=['POST'])
 @limiter.exempt

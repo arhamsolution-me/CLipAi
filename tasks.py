@@ -2,7 +2,7 @@ import os
 import json
 import logging
 import requests
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +88,7 @@ def process_job_task(job_id: str, access_token: str, app_factory_func=None):
             return
 
         job.status = 'processing'
-        job.updated_at = datetime.utcnow()
+        job.updated_at = datetime.now(timezone.utc)
         db.session.commit()
 
         clips = db.session.query(Clip).filter_by(job_id=job_id).all()
@@ -236,6 +236,6 @@ def process_job_task(job_id: str, access_token: str, app_factory_func=None):
         job.status = 'completed' if any_success else 'failed'
         if not any_success:
             job.error_message = 'All clip processing/upload steps failed'
-        job.updated_at = datetime.utcnow()
+        job.updated_at = datetime.now(timezone.utc)
         db.session.commit()
         logger.info(f"Job {job_id} finished processing with status: {job.status}")

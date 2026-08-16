@@ -119,6 +119,10 @@ def translate_words_if_requested(words_data: List[Dict[str, Any]], target_lang: 
     try:
         from services.ai_service import get_groq_client
         client = get_groq_client()
+        if not client:
+            logger.warning("Groq client unavailable; skipping translation.")
+            return words_data
+
         full_text = " ".join([w['word'] for w in words_data])
 
         prompt = (

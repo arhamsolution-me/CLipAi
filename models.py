@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 import os
 from flask_sqlalchemy import SQLAlchemy
@@ -38,8 +38,8 @@ class Job(db.Model):
 
     id = db.Column(db.String(36), primary_key=True)
     status = db.Column(db.String(20), default='pending')  # pending, processing, completed, failed
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     error_message = db.Column(db.Text, nullable=True)
 
     clips = db.relationship('Clip', backref='job', lazy=True, cascade="all, delete-orphan")
@@ -84,7 +84,7 @@ class Clip(db.Model):
     caption_color = db.Column(db.String(20), default='#FFFF00')  # Yellow highlight color hex
     caption_language = db.Column(db.String(10), default='auto')  # auto, en, es, fr, ar, ur, de, etc.
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     def get_tags(self):
         try:
@@ -134,7 +134,7 @@ class Clip(db.Model):
 
 def cleanup_old_data(db_session, clips_dir, hours=24):
     """Delete clip files and DB records older than `hours` hours"""
-    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
     try:
         old_clips = db_session.query(Clip).filter(Clip.created_at < cutoff).all()
         for clip in old_clips:
